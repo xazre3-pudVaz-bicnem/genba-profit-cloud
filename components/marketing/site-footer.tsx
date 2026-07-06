@@ -1,0 +1,63 @@
+import Link from "next/link";
+import { BrandLogo } from "@/components/brand";
+import { APP_NAME, APP_TAGLINE } from "@/lib/constants";
+
+const LINKS = [
+  {
+    title: "プロダクト",
+    items: [
+      { label: "機能", href: "/features" },
+      { label: "料金プラン", href: "/pricing" },
+      { label: "デモを見る", href: "/demo" },
+    ],
+  },
+  {
+    title: "はじめる",
+    items: [
+      { label: "無料で試す", href: "/signup" },
+      { label: "ログイン", href: "/login" },
+    ],
+  },
+];
+
+export function SiteFooter() {
+  return (
+    <footer className="border-t border-neutral-200 bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        <div className="flex flex-col justify-between gap-10 md:flex-row">
+          <div className="max-w-xs">
+            <BrandLogo />
+            <p className="mt-3 text-xs leading-6 text-neutral-500">
+              {APP_TAGLINE}。建設・内装・設備・リフォームなど、
+              現場仕事の「案件ごとの利益」を見える化するクラウドサービスです。
+            </p>
+          </div>
+          <div className="flex gap-16">
+            {LINKS.map((group) => (
+              <div key={group.title}>
+                <p className="text-xs font-bold text-neutral-900">{group.title}</p>
+                <ul className="mt-3 space-y-2.5">
+                  {group.items.map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className="text-xs text-neutral-500 transition-colors hover:text-brand-600"
+                      >
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-10 border-t border-neutral-100 pt-6">
+          <p className="text-[11px] text-neutral-400">
+            © {new Date().getFullYear()} {APP_NAME} All rights reserved.
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+}
