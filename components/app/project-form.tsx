@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Field } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/toast";
-import { PROJECT_COLORS, PROJECT_STATUSES, PROJECT_STATUS_ORDER } from "@/lib/constants";
-import { addProject, updateProject, useDB } from "@/lib/store";
-import type { Project, ProjectStatus } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/shared/button";
+import { Dialog } from "@/components/shared/dialog";
+import { Input } from "@/components/shared/input";
+import { Field } from "@/components/shared/label";
+import { Select } from "@/components/shared/select";
+import { Textarea } from "@/components/shared/textarea";
+import { toast } from "@/components/shared/toast";
+import { PROJECT_COLORS, PROJECT_STATUSES, PROJECT_STATUS_ORDER } from "@/lib/app/constants";
+import { addProject, updateProject, useDB } from "@/lib/app/store";
+import type { Project, ProjectStatus } from "@/lib/app/types";
+import { cn } from "@/lib/shared/utils";
 
 interface ProjectFormProps {
   open: boolean;

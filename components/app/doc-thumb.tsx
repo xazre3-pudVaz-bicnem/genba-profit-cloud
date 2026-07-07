@@ -8,8 +8,8 @@ import {
   ReceiptText,
   ScrollText,
 } from "lucide-react";
-import type { DocumentRec, DocumentType } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import type { DocumentRec, DocumentType } from "@/lib/app/types";
+import { cn } from "@/lib/shared/utils";
 
 const TYPE_ICONS: Record<DocumentType, typeof Receipt> = {
   receipt: Receipt,

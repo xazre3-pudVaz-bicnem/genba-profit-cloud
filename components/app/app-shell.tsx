@@ -2,16 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BrandMark } from "@/components/brand";
-import { getSession, setSession } from "@/lib/store";
-import { getSupabase } from "@/lib/supabase/client";
-import { MobileBottomNav, MobileTopBar } from "./mobile-nav";
-import { Sidebar } from "./sidebar";
+import { BrandMark } from "@/components/shared/logo";
+import { getSession, setSession, startDemoSession } from "@/lib/app/store";
+import { getSupabase } from "@/lib/app/supabase";
+import { AppHeader } from "./app-header";
+import { AppSidebar } from "./app-sidebar";
+import { MobileBottomNav } from "./mobile-nav";
 
 /**
- * アプリ全体のシェル。
- * 認証チェック（デモセッション or Supabaseセッション）を行い、
- * 未ログインなら /login へリダイレクトする。
+ * アプリ全体のシェル（LPとは完全分離）。
+ * - 認証チェック（デモセッション or Supabaseセッション）
+ * - `?demo=true` で開かれた場合はデモセッションを自動開始
+ * - 未ログインなら /login へリダイレクト
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -26,13 +28,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (!cancelled) setReady(true);
         return;
       }
-      // 2. Supabaseセッション
+      // 2. ?demo=true → デモセッションを自動開始（LPの「デモ管理画面を開く」導線）
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("demo") === "true") {
+        startDemoSession();
+        if (!cancelled) setReady(true);
+        return;
+      }
+      // 3. Supabaseセッション
       const supabase = getSupabase();
       if (supabase) {
         const { data } = await supabase.auth.getSession();
         if (data.session && !cancelled) {
           setSession({
-            name: (data.session.user.user_metadata?.name as string) || data.session.user.email || "ユーザー",
+            name:
+              (data.session.user.user_metadata?.name as string) ||
+              data.session.user.email ||
+              "ユーザー",
             email: data.session.user.email ?? "",
             role: "owner",
             mode: "supabase",
@@ -63,10 +75,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-surface">
-      <Sidebar />
-      <MobileTopBar />
+      <AppSidebar />
       <div className="pb-24 lg:pb-0 lg:pl-60">
-        <main className="min-h-[calc(100dvh-3.5rem)] lg:min-h-dvh">{children}</main>
+        <AppHeader />
+        <main className="min-h-[calc(100dvh-3.5rem)]">{children}</main>
       </div>
       <MobileBottomNav />
     </div>

@@ -1,7 +1,7 @@
 import { AlertTriangle, Minus, TrendingDown, TrendingUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import type { ProjectFinance } from "@/lib/calc";
-import { pct1 } from "@/lib/format";
+import { Badge } from "@/components/shared/badge";
+import type { ProjectFinance } from "@/lib/app/calc";
+import { pct1 } from "@/lib/shared/format";
 
 /**
  * 利益率バッジ

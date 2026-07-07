@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { CheckCircle2, Minus } from "lucide-react";
 import Link from "next/link";
-import { FaqList } from "@/components/marketing/faq";
+import { FaqList } from "@/components/marketing/sections/faq-section";
 import { Reveal } from "@/components/marketing/reveal";
-import { Button } from "@/components/ui/button";
-import { APP_NAME, FAQ_ITEMS, PLANS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/shared/button";
+import { FAQ_ITEMS, PLANS } from "@/lib/marketing/content";
+import { APP_NAME } from "@/lib/shared/config";
+import { appAuthUrl } from "@/lib/shared/urls";
+import { cn } from "@/lib/shared/utils";
 
 export const metadata: Metadata = {
   title: "料金プラン",
@@ -75,7 +77,7 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/signup" className="mt-6">
+                  <Link href={appAuthUrl("/signup")} className="mt-6">
                     <Button className="w-full" variant={plan.highlighted ? "primary" : "secondary"}>
                       14日間無料で試す
                     </Button>
@@ -147,7 +149,7 @@ export default function PricingPage() {
             <FaqList items={FAQ_ITEMS.slice(0, 4)} />
           </Reveal>
           <Reveal delay={0.15} className="mt-10 text-center">
-            <Link href="/signup">
+            <Link href={appAuthUrl("/signup")}>
               <Button size="lg">無料で試してみる</Button>
             </Link>
           </Reveal>

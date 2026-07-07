@@ -17,8 +17,8 @@ import {
   Wallet,
 } from "lucide-react";
 import { useState } from "react";
-import { BrandMark } from "@/components/brand";
-import { cn } from "@/lib/utils";
+import { BrandMark } from "@/components/shared/logo";
+import { cn } from "@/lib/shared/utils";
 
 // ============================================================
 // LP用モックUI（実際の管理画面コンポーネントの雰囲気を再現）

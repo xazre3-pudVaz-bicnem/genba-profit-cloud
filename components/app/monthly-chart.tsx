@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { MonthlyPoint } from "@/lib/calc";
-import { monthShortLabel, yen } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import type { MonthlyPoint } from "@/lib/app/calc";
+import { monthShortLabel, yen } from "@/lib/shared/format";
+import { cn } from "@/lib/shared/utils";
 
 // ============================================================
 // 月次推移チャート（売上 vs 原価のグループ棒 + ホバーで粗利表示）

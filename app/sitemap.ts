@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/constants";
+import { SITE_URL } from "@/lib/shared/config";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const pages = ["", "/features", "/pricing", "/demo", "/login", "/signup"];

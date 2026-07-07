@@ -1,12 +1,12 @@
 "use client";
 
 import { Check, FileQuestion, Sparkles } from "lucide-react";
-import { CONFIDENCE_BADGES, CONFIDENCE_LABELS, type AssignCandidate } from "@/lib/assign";
-import { Badge } from "@/components/ui/badge";
-import { Select } from "@/components/ui/select";
-import { PROJECT_STATUSES } from "@/lib/constants";
-import type { Project } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { CONFIDENCE_BADGES, CONFIDENCE_LABELS, type AssignCandidate } from "@/lib/app/assign";
+import { Badge } from "@/components/shared/badge";
+import { Select } from "@/components/shared/select";
+import { PROJECT_STATUSES } from "@/lib/app/constants";
+import type { Project } from "@/lib/app/types";
+import { cn } from "@/lib/shared/utils";
 
 interface ProjectSelectorProps {
   candidates: AssignCandidate[];

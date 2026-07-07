@@ -3,15 +3,16 @@
 import { AlertCircle, FileClock, Files, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Money } from "@/components/app/money";
+import { CurrencyText } from "@/components/shared/currency-text";
+import { DateText } from "@/components/shared/date-text";
 import { ProfitBadge } from "@/components/app/profit-badge";
 import { StatusBadge } from "@/components/app/status-badge";
-import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import type { ProjectFinance } from "@/lib/calc";
-import { PROJECT_STATUSES } from "@/lib/constants";
-import { shortDate, yen } from "@/lib/format";
-import type { Project } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/shared/table";
+import type { ProjectFinance } from "@/lib/app/calc";
+import { PROJECT_STATUSES } from "@/lib/app/constants";
+import { yen } from "@/lib/shared/format";
+import type { Project } from "@/lib/app/types";
+import { cn } from "@/lib/shared/utils";
 
 export interface ProjectRow {
   project: Project;
@@ -64,24 +65,24 @@ export function ProjectTable({ rows }: { rows: ProjectRow[] }) {
                   <StatusBadge meta={PROJECT_STATUSES[project.status]} />
                 </TD>
                 <TD align="right">
-                  <Money value={fin.revenueTotal} dashZero />
+                  <CurrencyText value={fin.revenueTotal} dashZero />
                 </TD>
                 <TD align="right">
                   <span title={`発注 ${yen(fin.orderTotal)} / 材料 ${yen(fin.materialTotal)} / 経費 ${yen(fin.expenseTotal)}`}>
-                    <Money value={fin.costTotal} dashZero />
+                    <CurrencyText value={fin.costTotal} dashZero />
                   </span>
                 </TD>
                 <TD align="right">
-                  <Money value={fin.profit} colorBySign dashZero={!fin.hasRevenue && !fin.hasCost} />
+                  <CurrencyText value={fin.profit} colorBySign dashZero={!fin.hasRevenue && !fin.hasCost} />
                 </TD>
                 <TD>
                   <ProfitBadge fin={fin} />
                 </TD>
                 <TD align="right">
-                  <Money value={fin.unbilled} dashZero className={fin.unbilled > 0 ? "text-amber-600" : ""} />
+                  <CurrencyText value={fin.unbilled} dashZero className={fin.unbilled > 0 ? "text-amber-600" : ""} />
                 </TD>
                 <TD align="right">
-                  <Money
+                  <CurrencyText
                     value={fin.unpaidReceivable}
                     dashZero
                     className={fin.unpaidReceivable > 0 ? "text-red-600" : ""}
@@ -98,7 +99,9 @@ export function ProjectTable({ rows }: { rows: ProjectRow[] }) {
                     ) : null}
                   </span>
                 </TD>
-                <TD className="text-xs text-neutral-400">{shortDate(project.updatedAt)}</TD>
+                <TD className="text-xs text-neutral-400">
+                  <DateText value={project.updatedAt} variant="short" />
+                </TD>
               </TR>
             ))}
           </TBody>

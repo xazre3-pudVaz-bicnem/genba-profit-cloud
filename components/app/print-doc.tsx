@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
-import { longDate, yen } from "@/lib/format";
-import type { Company, LineItem } from "@/lib/types";
+import { longDate, yen } from "@/lib/shared/format";
+import type { Company, LineItem } from "@/lib/app/types";
 
 // ============================================================
 // A4帳票（見積書・請求書・領収書）

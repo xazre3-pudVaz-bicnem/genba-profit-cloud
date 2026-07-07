@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-import { mockOcrResult, normalizeOcr } from "@/lib/ocr-shared";
-import type { DocumentType, OcrResult } from "@/lib/types";
+import { mockOcrResult, normalizeOcr } from "@/lib/app/ocr-shared";
+import type { DocumentType, OcrResult } from "@/lib/app/types";
 
 // ============================================================
 // AI OCR APIルート

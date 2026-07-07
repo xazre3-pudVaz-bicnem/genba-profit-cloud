@@ -1,11 +1,11 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { MoneyInput } from "@/components/ui/money-input";
-import { uid, yen } from "@/lib/format";
-import type { LineItem } from "@/lib/types";
+import { Button } from "@/components/shared/button";
+import { Input } from "@/components/shared/input";
+import { MoneyInput } from "@/components/shared/money-input";
+import { uid, yen } from "@/lib/shared/format";
+import type { LineItem } from "@/lib/app/types";
 
 interface LineItemsEditorProps {
   items: LineItem[];

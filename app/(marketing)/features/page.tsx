@@ -15,11 +15,11 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { DemoStartButton } from "@/components/marketing/demo-button";
 import { MockBoard, MockDashboard, MockOcr } from "@/components/marketing/mocks";
 import { Reveal } from "@/components/marketing/reveal";
-import { Button } from "@/components/ui/button";
-import { APP_NAME } from "@/lib/constants";
+import { Button } from "@/components/shared/button";
+import { APP_NAME } from "@/lib/shared/config";
+import { appAuthUrl, appDemoUrl } from "@/lib/shared/urls";
 
 export const metadata: Metadata = {
   title: "機能一覧",
@@ -161,8 +161,10 @@ export default function FeaturesPage() {
             ))}
           </div>
           <Reveal className="mt-12 flex flex-wrap items-center justify-center gap-3">
-            <DemoStartButton label="デモで操作感を確認する" />
-            <Link href="/signup">
+            <Link href={appDemoUrl()}>
+              <Button size="lg">デモで操作感を確認する</Button>
+            </Link>
+            <Link href={appAuthUrl("/signup")}>
               <Button size="lg" variant="secondary">
                 無料で試す
                 <ArrowRight className="h-4 w-4" />

@@ -1,5 +1,5 @@
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/shared/badge";
+import { cn } from "@/lib/shared/utils";
 
 interface StatusMeta {
   label: string;

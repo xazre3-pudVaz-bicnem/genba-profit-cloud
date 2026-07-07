@@ -6,6 +6,7 @@
 
 - **サービス名は仮**です。`.env` の `NEXT_PUBLIC_APP_NAME` でいつでも変更できます。
 - **APIキー・Supabaseが未設定でも全機能が動作**します（デモモード: ブラウザ内保存 + モックOCR）。
+- **LP（販売サイト）とアプリ（管理システム）はルーティング・レイアウト・コンポーネントを完全分離**しています。
 
 ---
 
@@ -16,7 +17,9 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-ログイン画面の「**デモモードで試す**」を押すと、サンプルデータ入りの管理画面がすぐに開きます。
+- `/` … 販売用LP
+- `/demo` … デモ紹介ページ →「デモ管理画面を開く」で `/app?demo=true`
+- `/app` … 管理システム（未ログイン時は `/login` へ。`?demo=true` ならデモセッションを自動開始）
 
 ### 本番構成（任意）
 
@@ -29,119 +32,159 @@ npm run dev        # http://localhost:3000
 
 ---
 
+## LPとアプリの分離構成
+
+### ルーティング（URLにルートグループ名は出ない）
+
+```
+app/
+├── (marketing)/        # LP側（SEO対象・MarketingHeader/Footer）
+│   ├── layout.tsx      #   LP用metadata（index許可・OGP）
+│   ├── page.tsx        #   / …… LPトップ（セクション合成のみ）
+│   ├── features/       #   /features
+│   ├── pricing/        #   /pricing
+│   └── demo/           #   /demo …… デモ紹介（管理画面そのものは置かない）
+├── (auth)/             # 認証（LPともアプリとも独立したAuthLayout）
+│   ├── login/          #   /login
+│   └── signup/         #   /signup
+├── (dashboard)/        # アプリ側（noindex・AppSidebar/AppHeader/下部ナビ）
+│   └── app/            #   /app 配下すべて（ダッシュボード〜設定）
+└── api/ocr/            # AI OCRエンドポイント
+```
+
+### コンポーネント（LP用とアプリ用を混在させない）
+
+```
+components/
+├── marketing/           # LP専用（アプリからimport禁止）
+│   ├── marketing-header.tsx / marketing-footer.tsx
+│   ├── mocks.tsx        # スクリーンショット風モック（実操作なし）
+│   ├── reveal.tsx
+│   └── sections/        # HeroSection / ProblemSection / SolutionSection /
+│                        # FeatureSection / ScreenMockSection / IndustrySection /
+│                        # PricingSection / FaqSection / FinalCtaSection
+├── app/                 # アプリ専用（LPからimport禁止）
+│   ├── app-shell.tsx    # 認証ガード + demo=true自動デモ開始
+│   ├── app-sidebar.tsx / app-header.tsx / mobile-nav.tsx / app-page-header.tsx
+│   ├── project-card.tsx / project-table.tsx / stat-card.tsx
+│   ├── document-upload-box.tsx / project-selector.tsx / doc-thumb.tsx
+│   ├── profit-badge.tsx / status-badge.tsx / monthly-chart.tsx
+│   ├── project-form.tsx / revenue-form.tsx / cost-form.tsx
+│   └── line-items-editor.tsx / print-doc.tsx
+├── auth/                # 認証専用
+│   ├── auth-layout.tsx / login-form.tsx / signup-form.tsx
+└── shared/              # 両方で使う共通部品
+    ├── button / card / badge / input / select / dialog / toast など
+    ├── logo.tsx         # Logo / BrandMark
+    ├── currency-text.tsx（¥1,234,567表示）/ date-text.tsx
+```
+
+### lib（責務分離）
+
+```
+lib/
+├── shared/    # 共通処理（金額・日付・税計算 / サービス設定 / URLヘルパー）
+│   ├── format.ts   config.ts   urls.ts   utils.ts
+├── app/       # アプリ用（収支計算・ストア・OCR・Supabase・ルート定義）
+│   ├── calc.ts  store.ts  demo-data.ts  assign.ts  ocr.ts  ocr-shared.ts
+│   ├── constants.ts  types.ts  supabase.ts  routes.ts
+└── marketing/ # LP用コンテンツ（料金・FAQ・業種）
+    └── content.ts
+```
+
+---
+
+## 将来のドメイン分離方針（重要）
+
+現在は**単一Next.jsプロジェクト内でLPとアプリをルーティング分離**していますが、
+将来的に**別Vercelプロジェクト・別ドメイン**へ分離する前提の設計です。
+
+| | 想定ドメイン | SEO |
+|---|---|---|
+| LP | `https://genba-profit-cloud.jp` | **対象**（index許可・OGP・構造化データ） |
+| アプリ | `https://app.genba-profit-cloud.jp` | **対象外**（noindex。`robots.ts` でも `/app` をdisallow） |
+
+### URLはハードコードしない
+
+LP→アプリのCTAリンクはすべて `lib/shared/urls.ts` のヘルパー経由です。
+
+```
+NEXT_PUBLIC_MARKETING_URL   # LP側URL（例: https://genba-profit-cloud.jp）
+NEXT_PUBLIC_APP_URL         # アプリ側URL（例: https://app.genba-profit-cloud.jp）
+```
+
+- 未設定（現在）: `appUrl()` → `/app`、`appAuthUrl("/login")` → `/login`
+- 分離後: 環境変数を設定するだけで、無料で試す／ログイン／デモの全CTAが別ドメインへ切り替わる
+- 認証（/login /signup）は**アプリ側ドメインに属する**想定（`appAuthUrl` が吸収）
+
+### /app プレフィックスの外し方（分離後）
+
+アプリ側プロジェクトでは2通りのどちらかで対応できます。
+
+1. `lib/app/routes.ts` の `APP_BASE_PATH` を `""` に変更（ナビはこの定数を参照）
+2. またはページを触らず、アプリ側の `next.config` にrewriteを追加:
+   ```js
+   rewrites: async () => [
+     { source: "/:path((?!app|api|_next).*)", destination: "/app/:path" },
+   ]
+   ```
+
+### 分離時にやること
+
+- リポジトリを `apps/lp`（(marketing) + (auth)なし）と `apps/app`（(dashboard) + (auth) + api）へ分割
+- それぞれに `components/shared` と `lib/shared` をコピーまたはパッケージ化
+- 両プロジェクトに `NEXT_PUBLIC_MARKETING_URL` / `NEXT_PUBLIC_APP_URL` を設定
+- アプリ側は全体をnoindex（`robots.ts` で `disallow: "/"`）
+
+---
+
 ## 技術構成
 
 | 領域 | 技術 |
 |---|---|
 | フレームワーク | Next.js 16（App Router / Turbopack） + TypeScript |
 | スタイル | Tailwind CSS v4 + 自作shadcn/ui風コンポーネント |
-| アニメーション | Framer Motion（LP） |
+| アニメーション | Framer Motion（LPのみ） |
 | バックエンド | Supabase（Auth / DB / Storage / RLS）※未設定時はデモモード |
 | AI OCR | Claude Vision API（第一候補）→ OpenAI Vision → モック解析 |
 | PDF | ブラウザ印刷ベースのA4帳票（`@media print` + `.print-area`） |
-| PWA | `manifest.webmanifest` + SVGアイコン（standalone起動対応） |
+| PWA | `manifest.webmanifest` + SVGアイコン |
 
-### データ層の設計（SaaS化しやすい構造）
+### デモモード（/app?demo=true）
 
-UIはすべて `lib/store.ts` のCRUD関数だけを呼びます。現在はlocalStorage永続化のデモストアですが、
-関数シグネチャを維持したままSupabaseクエリへ差し替え可能です（`supabase/schema.sql` はUIの型と1:1対応）。
-認証・ストレージアップロードはSupabase設定時に自動で有効になります。
+- LP・デモページの「デモ管理画面を開く」から遷移すると、セッションが無い場合に**デモセッションを自動開始**
+- サンプル案件9件・レシート・請求書入り。日付は常に「今日」基準で生成
+- データは**ブラウザのlocalStorageのみ**（サーバー保存なし）
+- アプリヘッダーに「デモモード」表示と「本番利用を開始する」ボタン（/signupへ）を表示
+- OCRはモック解析（`ANTHROPIC_API_KEY` 設定で実読み取り）
 
 ---
 
-## 作成したページ一覧
+## 画面一覧
 
-### 公開ページ
+### LP側（SEO対象）
 | パス | 内容 |
 |---|---|
-| `/` | 販売用LP（課題提起・5ステップ・機能・画面イメージ・業種別・料金・FAQ・CTA、JSON-LD付き） |
-| `/features` | 機能詳細（モックUI付きの5大機能 + その他機能） |
-| `/pricing` | 料金プラン + 機能比較表 + FAQ |
-| `/demo` | デモ紹介（登録不要でデモ開始） |
-| `/login` / `/signup` | 認証（Supabase or デモモード） |
+| `/` | LP（ヒーロー・課題・5ステップ・機能9・画面モック・業種8・料金・FAQ・CTA、JSON-LD付き） |
+| `/features` | 機能詳細 |
+| `/pricing` | 料金 + プラン比較表 |
+| `/demo` | デモ紹介（試せること・注意書き・デモ管理画面を開く） |
 
-### アプリ画面（`/app` 配下・noindex）
+### 認証
 | パス | 内容 |
 |---|---|
-| `/app` | ダッシュボード（今月のKPI 13種・月次チャート・要対応リスト6パネル） |
-| `/app/projects` | 案件一覧（検索・7種フィルタ・6種ソート・PC表/スマホカード切替） |
-| `/app/projects/new` | 案件作成 |
-| `/app/projects/[id]` | **案件詳細**（収支サマリー8指標 + 9タブ: 概要/売上/発注費/材料費/経費/書類/見積/請求/メモ） |
-| `/app/projects/board` | 案件ボード（D&D + ボタンでステータス変更） |
-| `/app/calendar` | カレンダー（工期・請求予定・入金予定、期日超過は赤表示） |
-| `/app/documents` | 書類一覧（絞り込み・詳細ダイアログ・案件再割当・収支への登録） |
-| `/app/documents/upload` | **写真から登録**（撮影→種別→AI読取→確認→完了の5ステップウィザード） |
-| `/app/revenues` | 売上一覧（未請求/未入金フィルタ・入金のワンタップ記録） |
-| `/app/costs` | 原価一覧（発注費/材料費/経費・未払い管理） |
-| `/app/estimates` `/new` `/[id]` | 見積書の一覧・作成・詳細（A4帳票プレビュー + PDF） |
-| `/app/invoices` `/new` `/[id]` | 請求書の一覧・作成・詳細（期限超過検知・領収書発行・売上自動連携） |
-| `/app/settings` | 会社設定（帳票用の会社情報・ロゴ・振込先・接続状態・データ管理） |
-| `/app/settings/members` | メンバー管理（4段階ロール） |
-| `/api/ocr` | AI OCRエンドポイント（Claude → OpenAI → モックの優先フォールバック） |
+| `/login` `/signup` | 左: サービス説明 / 右: フォーム + デモログインボタン |
 
----
-
-## 主要コンポーネント一覧
-
-```
-components/
-├── brand.tsx                  # BrandMark / BrandLogo（ロゴ）
-├── ui/                        # 汎用UI（shadcn/ui風・自作）
-│   ├── button / card / badge / input / textarea / select / label
-│   ├── dialog.tsx             # Dialog + ConfirmDialog（スマホはボトムシート）
-│   ├── tabs.tsx               # Tabs + FilterChips
-│   ├── toast.tsx              # toast() + Toaster（グローバル通知）
-│   ├── money-input.tsx        # 金額入力（テンキー・カンマ整形）
-│   ├── segmented.tsx / table / empty-state / skeleton
-├── app/                       # アプリ専用
-│   ├── app-shell.tsx          # 認証ガード + レイアウト
-│   ├── sidebar.tsx / mobile-nav.tsx（下部固定ナビ+中央FAB）/ page-header.tsx
-│   ├── stat-card.tsx          # KPIカード
-│   ├── monthly-chart.tsx      # 月次チャート(SVG・CVD検証済み配色・ツールチップ)
-│   ├── status-badge.tsx / profit-badge.tsx / money.tsx
-│   ├── project-table.tsx      # 案件一覧（表⇔カード自動切替）
-│   ├── project-form.tsx / revenue-form.tsx / cost-form.tsx
-│   ├── project-selector.tsx   # AI割り振り候補（信頼度・理由つき）
-│   ├── doc-thumb.tsx          # 書類サムネイル（画像なし時はプレースホルダ）
-│   ├── line-items-editor.tsx  # 見積/請求の明細行エディタ
-│   └── print-doc.tsx          # A4帳票（見積書/請求書/領収書）
-└── marketing/                 # LP用
-    ├── site-header / site-footer / reveal（スクロールアニメ）
-    ├── mocks.tsx              # 画面モック（ダッシュボード/ボード/OCRスマホ）
-    ├── faq.tsx / demo-button.tsx
-```
-
-### lib（ビジネスロジック）
-
-| ファイル | 役割 |
+### アプリ側（noindex）
+| パス | 内容 |
 |---|---|
-| `lib/types.ts` | 全ドメイン型（Supabaseテーブルと1:1） |
-| `lib/constants.ts` | サービス名・ステータス定義・料金プラン・FAQ（一元管理） |
-| `lib/format.ts` | **共通関数**: `yen()`（¥1,234,567形式）・`pct1()`（小数1桁%）・`calcTax()`（消費税）・日付フォーマット |
-| `lib/calc.ts` | 収支自動計算（粗利・利益率・未請求・未入金・月次集計・ダッシュボード統計） |
-| `lib/assign.ts` | 案件自動割り振りスコアリング（取引先履歴/宛名/住所/日付/コンテキスト） |
-| `lib/store.ts` | リアクティブストア（CRUD・セッション・localStorage永続化） |
-| `lib/demo-data.ts` | サンプルデータ（日付は常に「今日」基準で生成） |
-| `lib/ocr.ts` `ocr-shared.ts` | 画像縮小・OCR呼び出し・正規化・モック解析 |
-| `lib/supabase/client.ts` | Supabase接続（未設定ならnull＝デモモード） |
-
----
-
-## Supabaseテーブル一覧（`supabase/schema.sql`）
-
-| テーブル | 内容 |
-|---|---|
-| `companies` | 会社（帳票情報・振込先・ロゴ含む） |
-| `profiles` | ユーザー（auth.usersと1:1、`role`: owner/admin/staff/viewer） |
-| `projects` | 案件（ステータス・工期・タグ・カラー） |
-| `revenues` | 売上（税区分・請求/入金日・ステータス） |
-| `costs` | 原価（type: order/material/expense、経費カテゴリ・支払方法） |
-| `documents` | 書類（OCR結果 `ai_json`・割り振り信頼度・登録先参照） |
-| `estimates` + `estimate_items` | 見積書 + 明細 |
-| `invoices` + `invoice_items` | 請求書 + 明細 |
-
-**RLS**: `current_company_id()` ヘルパーにより全テーブルを会社単位で分離。
-`viewer` ロールは書き込み不可。Storageも `{company_id}/...` パスで分離。
+| `/app` | ダッシュボード（今月の売上/原価/粗利/利益率・未請求・未入金・進行中/赤字案件・未処理レシート + 要対応パネル6種） |
+| `/app/projects` `/new` `/board` `/[id]` | 案件一覧・作成・ボード・詳細（9タブ） |
+| `/app/calendar` | 工期・請求・入金カレンダー |
+| `/app/documents` `/upload` | 書類一覧・写真から登録（AI読み取りウィザード） |
+| `/app/revenues` `/app/costs` | 売上・原価一覧 |
+| `/app/estimates` `/app/invoices`（+ `/new` `/[id]`） | 見積・請求（A4帳票PDF・領収書発行） |
+| `/app/settings` `/members` | 会社設定・メンバー管理 |
 
 ---
 
@@ -149,11 +192,12 @@ components/
 
 ```bash
 NEXT_PUBLIC_APP_NAME=現場収支クラウド   # サービス名（あとで変更可）
-NEXT_PUBLIC_SITE_URL=                  # 本番URL（SEO/OGP用）
+NEXT_PUBLIC_MARKETING_URL=             # LP側URL（分離後に設定）
+NEXT_PUBLIC_APP_URL=                   # アプリ側URL（分離後に設定）
 NEXT_PUBLIC_SUPABASE_URL=              # ─┐ 未設定ならデモモード
 NEXT_PUBLIC_SUPABASE_ANON_KEY=         # ─┘
 ANTHROPIC_API_KEY=                     # AI OCR第一候補（Claude Vision）
-OCR_MODEL=                             # 省略時 claude-opus-4-8（コスト重視なら claude-haiku-4-5）
+OCR_MODEL=                             # 省略時 claude-opus-4-8
 OPENAI_API_KEY=                        # AI OCR第二候補
 ```
 
@@ -161,40 +205,39 @@ OPENAI_API_KEY=                        # AI OCR第二候補
 
 1. `ANTHROPIC_API_KEY` あり → Claude Visionで実読み取り
 2. なければ `OPENAI_API_KEY` → OpenAI Vision（gpt-4o-mini）
-3. どちらもなし／API失敗 → **モック解析**（書類種別に応じた自然なサンプル値 + 「AI OCR未設定」の案内表示）
-4. 通信自体が失敗してもクライアント側モックで継続。**手入力での修正・登録は常に可能**
+3. どちらもなし／API失敗 → **モック解析**（自然なサンプル値 + 未設定の案内表示）
+4. 読み取り結果は必ず**確認画面**を経由（半自動）。手入力での修正・登録も常に可能
 
-読み取り結果は必ず**確認画面**を経由し、ユーザーが案件・金額・登録先を確認してから保存されます（半自動方式）。
+## Supabaseテーブル（`supabase/schema.sql`）
+
+companies / profiles / projects / revenues / costs / documents /
+estimates + estimate_items / invoices + invoice_items
+
+RLS: `current_company_id()` により全テーブルを会社単位で分離。viewerロールは書き込み不可。
+Storageは `{company_id}/...` パスで分離。
 
 ---
 
 ## 今後追加すべき機能
 
-- Supabase DB CRUDへの完全切替（ストア関数の差し替え。スキーマ・認証・Storageは実装済み）
-- freee / マネーフォワードへのCSVエクスポート・API連携
-- 過去案件のCSV一括インポート
-- 銀行API連携による入金自動消込
-- 協力会社の招待・発注書送付
-- 工程表・写真台帳・電子小黒板
-- 承認フロー・より細かい権限制御
-- OCR精度向上（明細行の構造化・学習による案件推定の強化）
-- プッシュ通知（期日超過・未確認書類）・Service Workerによる完全オフライン対応
+- Supabase DB CRUDへの完全切替（`lib/app/store.ts` の関数差し替え）
+- freee / マネーフォワードCSV連携、過去案件CSVインポート
+- 銀行API連携・入金自動消込
+- 協力会社招待・発注書送付、工程表・写真台帳
+- プッシュ通知（期日超過・未確認書類）、Service Worker
 - Stripe課金（プラン制限の実装）
+- お問い合わせフォーム・特商法/規約/プライバシーページ
 
-## デプロイ前に確認すべき項目
+## デプロイ前チェックリスト
 
-- [ ] `NEXT_PUBLIC_SITE_URL` を本番ドメインに設定（OGP・sitemap・canonicalに反映）
+- [ ] `NEXT_PUBLIC_MARKETING_URL`（および分離後は `NEXT_PUBLIC_APP_URL`）を本番ドメインに設定
 - [ ] `NEXT_PUBLIC_APP_NAME` を正式サービス名に変更
-- [ ] Supabaseの `schema.sql` 適用と `documents` バケット作成・RLS動作確認
-- [ ] Supabase Authのメールテンプレート・リダイレクトURL設定
-- [ ] `ANTHROPIC_API_KEY` の設定とOCR実読み取りの精度確認（設定画面の接続状態で確認可能）
-- [ ] OGP画像（`/og-image.jpg` 1200×630）の用意
-- [ ] 料金プラン（`lib/constants.ts` の `PLANS`）の正式金額への更新
+- [ ] Supabase `schema.sql` 適用・`documents` バケット作成・RLS動作確認
+- [ ] `ANTHROPIC_API_KEY` 設定とOCR精度確認（設定画面の接続状態で確認可能）
+- [ ] OGP画像（1200×630）の用意
+- [ ] 料金（`lib/marketing/content.ts`）の正式金額への更新
 - [ ] 特商法・プライバシーポリシー・利用規約ページの追加
-- [ ] 独自ドメインでの印刷（PDF）表示確認（Chrome/Safari/Edge）
-- [ ] Lighthouse / Core Web Vitals の計測
-
----
+- [ ] 印刷（PDF）表示確認・Lighthouse計測
 
 ## スクリプト
 
