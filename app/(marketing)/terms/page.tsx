@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LegalPage, LegalSection } from "@/components/marketing/legal-page";
-import { APP_NAME, OPERATOR_NAME } from "@/lib/shared/config";
+import { COMPANY_INFO } from "@/lib/legal/company-info";
+import { APP_NAME } from "@/lib/shared/config";
 
 export const metadata: Metadata = {
   title: "利用規約",
@@ -13,7 +14,7 @@ export default function TermsPage() {
   return (
     <LegalPage title="利用規約" updatedAt="2026年7月7日">
       <p>
-        この利用規約（以下「本規約」）は、{OPERATOR_NAME}
+        この利用規約（以下「本規約」）は、{COMPANY_INFO.companyName}
         （以下「当社」）が提供する「{APP_NAME}
         」（以下「本サービス」）の利用条件を定めるものです。登録ユーザーの皆さま（以下「ユーザー」）は、本規約に同意のうえ本サービスをご利用ください。
       </p>

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage } from "@/components/marketing/legal-page";
-import { APP_NAME, OPERATOR_NAME } from "@/lib/shared/config";
+import { COMPANY_INFO } from "@/lib/legal/company-info";
+import { APP_NAME } from "@/lib/shared/config";
 
 export const metadata: Metadata = {
   title: "特定商取引法に基づく表記",
@@ -9,18 +10,19 @@ export const metadata: Metadata = {
   alternates: { canonical: "/commercial-law" },
 };
 
-// 事業者情報は正式公開時に差し替える（値はこの配列だけを編集すればよい）
+// 事業者情報の実体は lib/legal/company-info.ts（正式公開時はそこだけ差し替える）
 const ENTRIES: { label: string; value: React.ReactNode }[] = [
-  { label: "事業者名", value: OPERATOR_NAME },
-  { label: "サービス名", value: APP_NAME },
-  { label: "所在地", value: "正式公開前につき後日記載いたします" },
-  { label: "電話番号", value: "請求があった場合に遅滞なく開示いたします" },
-  { label: "メールアドレス", value: "正式公開前につき後日記載いたします" },
+  { label: "事業者名", value: COMPANY_INFO.companyName },
+  { label: "代表者", value: COMPANY_INFO.representative },
+  { label: "サービス名", value: COMPANY_INFO.serviceName },
+  { label: "所在地", value: COMPANY_INFO.address },
+  { label: "電話番号", value: COMPANY_INFO.phone },
+  { label: "メールアドレス", value: COMPANY_INFO.email },
   {
     label: "販売価格",
     value: (
       <>
-        <Link href="/pricing" className="text-brand-600 hover:underline">
+        <Link href={COMPANY_INFO.pricePagePath} className="text-brand-600 hover:underline">
           料金ページ
         </Link>
         に記載しています（表示価格は税別）

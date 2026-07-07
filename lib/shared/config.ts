@@ -14,9 +14,9 @@ export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
   "http://localhost:3000";
 
-/** 問い合わせ先メールアドレス（「相談する」CTA・法務ページで使用） */
+/** 問い合わせ先メールアドレス（「相談する」CTA・法務ページで使用。仮設定・envで差し替え可） */
 export const CONTACT_EMAIL =
-  process.env.NEXT_PUBLIC_CONTACT_EMAIL || "support@genba-cloud.example.jp";
+  process.env.NEXT_PUBLIC_CONTACT_EMAIL || "consulting.meo@gmail.com";
 
 /** 運営事業者名（特商法・フッターで使用。正式公開時に差し替え） */
 export const OPERATOR_NAME = process.env.NEXT_PUBLIC_OPERATOR_NAME || "株式会社サイプレス";

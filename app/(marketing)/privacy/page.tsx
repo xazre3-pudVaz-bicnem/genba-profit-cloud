@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LegalPage, LegalSection } from "@/components/marketing/legal-page";
-import { APP_NAME, CONTACT_EMAIL, OPERATOR_NAME } from "@/lib/shared/config";
+import { COMPANY_INFO } from "@/lib/legal/company-info";
+import { APP_NAME } from "@/lib/shared/config";
 
 export const metadata: Metadata = {
   title: "プライバシーポリシー",
@@ -13,7 +14,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage title="プライバシーポリシー" updatedAt="2026年7月7日">
       <p>
-        {OPERATOR_NAME}（以下「当社」）は、「{APP_NAME}
+        {COMPANY_INFO.companyName}（以下「当社」）は、「{APP_NAME}
         」（以下「本サービス」）における個人情報を含む利用者情報の取扱いについて、以下のとおりプライバシーポリシーを定めます。
       </p>
 
@@ -86,7 +87,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="10. お問い合わせ窓口">
         <p>
-          本ポリシーに関するお問い合わせは、{CONTACT_EMAIL} までご連絡ください。
+          本ポリシーに関するお問い合わせは、{COMPANY_INFO.email} までご連絡ください。
         </p>
       </LegalSection>
     </LegalPage>
