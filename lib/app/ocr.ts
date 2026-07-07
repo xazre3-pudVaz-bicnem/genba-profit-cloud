@@ -75,24 +75,43 @@ export async function makeThumbnail(file: File): Promise<string | null> {
   }
 }
 
+export interface AnalyzeOptions {
+  /** Storage上の原本パス。指定するとサーバーが原本を取得して解析する */
+  filePath?: string | null;
+  /** documents.id。指定するとサーバーが解析結果をdocumentsへ保存する */
+  documentId?: string | null;
+  /** SupabaseのアクセストークンJWT（Storage取得・documents更新のRLS用） */
+  accessToken?: string | null;
+}
+
 /**
- * 書類画像をAI解析する。
- * 1. 画像を縮小 → /api/ocr へ送信（Claude / OpenAI / サーバー側モック）
- * 2. 通信やAPI自体が失敗した場合もクライアント側モックで継続
+ * 書類をAI解析する（本番モード用）。
+ * 1. Storageパス + JWT を /api/ocr へ送信（サーバーが原本を取得してClaude/OpenAIで解析）
+ * 2. あわせて縮小画像も送り、Storage取得に失敗した場合のフォールバックにする
+ * 3. 通信やAPI自体が失敗した場合はモック結果 + 失敗通知を返す
+ *    （呼び出し側は provider === "mock" を「実読み取り失敗」として扱える）
  */
-export async function analyzeDocument(file: File, hint: DocumentType): Promise<AnalyzeOutcome> {
+export async function analyzeDocument(
+  file: File,
+  hint: DocumentType,
+  opts: AnalyzeOptions = {}
+): Promise<AnalyzeOutcome> {
   let image: ResizedImage | null = null;
   try {
     image = await resizeForUpload(file);
   } catch {
-    image = null;
+    image = null; // PDF等は縮小不可。Storage原本側で解析する
   }
 
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (opts.accessToken) headers.Authorization = `Bearer ${opts.accessToken}`;
     const res = await fetch("/api/ocr", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
+        documentId: opts.documentId ?? null,
+        filePath: opts.filePath ?? null,
         image: image?.base64 ?? null,
         mimeType: image?.mimeType ?? file.type,
         hint,
@@ -113,8 +132,12 @@ export async function analyzeDocument(file: File, hint: DocumentType): Promise<A
     return {
       provider: "mock",
       result: mockOcrResult(hint),
-      notice:
-        "解析サーバーに接続できなかったため、サンプルの読み取り結果を表示しています。内容を修正して保存できます。",
+      notice: "AI読み取りに失敗しました。内容を手入力して登録できます。",
     };
   }
+}
+
+/** デモモード用のモック解析（実OCR APIは呼ばない） */
+export function analyzeMock(hint: DocumentType): AnalyzeOutcome {
+  return { provider: "mock", result: mockOcrResult(hint) };
 }

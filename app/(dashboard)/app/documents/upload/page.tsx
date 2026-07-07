@@ -33,7 +33,7 @@ import {
   PAYMENT_METHODS,
 } from "@/lib/app/constants";
 import { calcTax, pct1, todayISO, yen } from "@/lib/shared/format";
-import { analyzeDocument, makeThumbnail, type AnalyzeOutcome } from "@/lib/app/ocr";
+import { analyzeDocument, analyzeMock, makeThumbnail, type AnalyzeOutcome } from "@/lib/app/ocr";
 import {
   addCost,
   addDocument,
@@ -44,6 +44,7 @@ import {
   useDB,
   useSession,
 } from "@/lib/app/data-store";
+import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
 import { isPdfFile } from "@/lib/app/upload";
 import type {
   DocumentType,
@@ -57,7 +58,7 @@ type Step = "pick" | "type" | "analyzing" | "confirm" | "done";
 
 const STEP_LABELS: { key: Step; label: string }[] = [
   { key: "pick", label: "撮影" },
-  { key: "type", label: "種別" },
+  { key: "type", label: "種別・案件" },
   { key: "analyzing", label: "AI読取" },
   { key: "confirm", label: "確認" },
   { key: "done", label: "完了" },
@@ -78,7 +79,7 @@ const TARGET_LABELS: Record<RegisterTarget, string> = {
   order: "発注費として登録",
   expense: "経費として登録",
   revenue: "売上として登録",
-  none: "書類のみ保管",
+  none: "書類のみ保存",
 };
 
 interface ConfirmForm {
@@ -86,7 +87,9 @@ interface ConfirmForm {
   vendor: string;
   date: string;
   amount: number;
+  tax: number;
   itemsText: string;
+  memo: string;
   paymentMethod: PaymentMethod | "";
   target: RegisterTarget;
   category: ExpenseCategory;
@@ -114,16 +117,22 @@ function UploadContent() {
   const [selectedProject, setSelectedProject] = useState<string | null>(contextProjectId);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<DoneInfo | null>(null);
+  const [taxTouched, setTaxTouched] = useState(false);
   const thumbRef = useRef<string | null>(null);
-  // Storageアップロード（本番モードのみ・解析と並行実行）。デモモードはnull
-  const uploadRef = useRef<Promise<string | null> | null>(null);
+  // 解析開始時に作成した書類レコード（確認・保存はこのレコードを更新する）
+  const docIdRef = useRef<string | null>(null);
+  // Storageへ保存済みの原本パス（再解析時の二重アップロード防止）
+  const uploadedPathRef = useRef<string | null>(null);
+  // 解析開始時に選択されていた案件（候補スコアリングの文脈に使う）
+  const analyzeProjectRef = useRef<string | null>(contextProjectId);
 
   const isPdf = file ? isPdfFile(file) : false;
+  const isLive = isSupabaseConfigured() && session?.mode === "supabase";
 
   const candidates = useMemo(
     () =>
       suggestProjects(
-        { ocr: outcome?.result ?? null, contextProjectId },
+        { ocr: outcome?.result ?? null, contextProjectId: analyzeProjectRef.current ?? contextProjectId },
         db
       ),
     [outcome, contextProjectId, db]
@@ -142,50 +151,133 @@ function UploadContent() {
   const startAnalyze = async () => {
     if (!file) return;
     setStep("analyzing");
-    // 原本をStorageへ保存（本番モードのみ）。失敗しても書類データの登録は続行できる
-    uploadRef.current = uploadDocumentFile(file, selectedProject).catch((err: unknown) => {
-      toast({
-        title: "ファイルの保存に失敗しました",
-        description: `${err instanceof Error ? err.message : ""} 読み取り内容の登録は続行できます`.trim(),
-        variant: "error",
-      });
-      return null;
-    });
-    const [thumb, result] = await Promise.all([
-      makeThumbnail(file),
-      analyzeDocument(file, docType),
-      new Promise((r) => setTimeout(r, 1100)),
-    ]).then(([t, r]) => [t, r] as const);
+    setTaxTouched(false);
+    analyzeProjectRef.current = selectedProject;
 
+    // 1) 原本をStorageへ保存（本番モードのみ・再解析時は再アップロードしない）。
+    //    失敗しても手入力での登録は続行できる
+    const uploadPromise: Promise<string | null> =
+      isLive && !uploadedPathRef.current
+        ? uploadDocumentFile(file, selectedProject).catch((err: unknown) => {
+            toast({
+              title: "ファイルの保存に失敗しました",
+              description: `${err instanceof Error ? err.message : ""} 読み取り内容の登録は続行できます`.trim(),
+              variant: "error",
+            });
+            return null;
+          })
+        : Promise.resolve(uploadedPathRef.current);
+    const [thumb, filePath] = await Promise.all([makeThumbnail(file), uploadPromise]);
     thumbRef.current = thumb;
-    setOutcome(result);
+    uploadedPathRef.current = filePath;
+
+    // 2) 書類レコードを「解析待ち」で作成（保存前に離脱しても書類一覧から登録できる）
+    let docId = docIdRef.current;
+    if (docId) {
+      updateDocument(docId, {
+        projectId: selectedProject,
+        documentType: docType,
+        ...(filePath ? { fileUrl: filePath } : {}),
+        thumbnailUrl: thumb,
+        status: "pending",
+      });
+    } else {
+      const doc = addDocument({
+        projectId: selectedProject,
+        uploadedBy: session?.name ?? "自分",
+        documentType: docType,
+        fileUrl: filePath,
+        thumbnailUrl: thumb,
+        vendorName: "",
+        documentDate: null,
+        totalAmount: null,
+        taxAmount: null,
+        ocrText: "",
+        ai: null,
+        assignmentConfidence: null,
+        status: "pending",
+        registeredTo: null,
+      });
+      docId = doc.id;
+      docIdRef.current = docId;
+    }
+
+    // 3) AI OCR（本番: /api/ocr が原本をStorageから取得して解析 / デモ: モック）
+    let result: AnalyzeOutcome;
+    if (isLive) {
+      const sb = getSupabase();
+      const token = sb ? ((await sb.auth.getSession()).data.session?.access_token ?? null) : null;
+      [result] = await Promise.all([
+        analyzeDocument(file, docType, { documentId: docId, filePath, accessToken: token }),
+        new Promise((r) => setTimeout(r, 600)),
+      ]);
+    } else {
+      [result] = await Promise.all([
+        Promise.resolve(analyzeMock(docType)),
+        new Promise((r) => setTimeout(r, 1100)),
+      ]);
+    }
+
+    // 4) 結果を反映。本番モードで実OCRに失敗した場合はサンプル値を流し込まず手入力へ
+    const ocrFailed = isLive && result.provider === "mock";
     const r = result.result;
-    setForm({
-      docType: r.documentType || docType,
-      vendor: r.vendorName,
-      date: r.documentDate || todayISO(),
-      amount: r.totalAmount,
-      itemsText: r.items.map((i) => i.name).join("、"),
-      paymentMethod: r.paymentMethod ?? "",
-      target: DEFAULT_TARGET[r.documentType || docType],
-      category: "site_misc",
-    });
-    // AI候補の最上位を初期選択（コンテキスト案件があればそちら優先）
-    setSelectedProject((prev) => prev ?? null);
+    if (ocrFailed) {
+      setOutcome({
+        ...result,
+        notice: result.notice ?? "AI読み取りに失敗しました。内容を手入力して登録できます。",
+      });
+      setForm({
+        docType,
+        vendor: "",
+        date: todayISO(),
+        amount: 0,
+        tax: 0,
+        itemsText: "",
+        memo: "",
+        paymentMethod: "",
+        target: DEFAULT_TARGET[docType],
+        category: "site_misc",
+      });
+      updateDocument(docId, { status: "needs_review" });
+    } else {
+      setOutcome(result);
+      setForm({
+        docType: r.documentType || docType,
+        vendor: r.vendorName,
+        date: r.documentDate || todayISO(),
+        amount: r.totalAmount,
+        tax: r.taxAmount || calcTax(r.totalAmount, "inclusive").tax,
+        itemsText: r.items.map((i) => i.name).join("、"),
+        memo: "",
+        paymentMethod: r.paymentMethod ?? "",
+        target: r.suggestedTarget ?? DEFAULT_TARGET[r.documentType || docType],
+        category: r.suggestedCategory ?? "site_misc",
+      });
+      // 読み取り結果を書類レコードへ保存（確認待ち）。サーバー側でも保存済みだが、
+      // ローカルキャッシュと直列書き込みキューの整合はこちらが担保する
+      updateDocument(docId, {
+        documentType: r.documentType || docType,
+        vendorName: r.vendorName,
+        documentDate: r.documentDate || null,
+        totalAmount: r.totalAmount || null,
+        taxAmount: r.taxAmount || null,
+        ocrText: r.rawText ?? "",
+        ai: r,
+        assignmentConfidence: r.confidence,
+        status: "needs_review",
+      });
+    }
     setStep("confirm");
   };
 
   const save = async () => {
     if (!form) return;
+    const docId = docIdRef.current;
+    if (!docId) return;
     setSaving(true);
 
-    const tax = outcome?.result.taxAmount
-      ? Math.min(outcome.result.taxAmount, form.amount)
-      : calcTax(form.amount, "inclusive").tax;
-
-    // Storageへの保存結果（解析中に並行実行済み。デモモード・失敗時はnull）
-    const fileUrl: string | null = uploadRef.current ? await uploadRef.current : null;
-
+    const tax = Math.max(0, Math.min(form.tax, form.amount));
+    const ocrFailed = isLive && outcome?.provider === "mock";
     const effectiveTarget: RegisterTarget = selectedProject ? form.target : "none";
     const topCandidate = candidates[0];
     const confidence =
@@ -195,21 +287,18 @@ function UploadContent() {
           ? "medium"
           : null;
 
-    const doc = addDocument({
+    // 確認・編集した内容で書類レコードを確定させる
+    updateDocument(docId, {
       projectId: selectedProject,
-      uploadedBy: session?.name ?? "自分",
       documentType: form.docType,
-      fileUrl,
-      thumbnailUrl: thumbRef.current,
       vendorName: form.vendor,
       documentDate: form.date || null,
       totalAmount: form.amount,
       taxAmount: tax,
-      ocrText: outcome?.result.rawText ?? "",
-      ai: outcome?.result ?? null,
+      ocrText: ocrFailed ? "" : (outcome?.result.rawText ?? ""),
+      ai: ocrFailed ? null : (outcome?.result ?? null),
       assignmentConfidence: confidence,
       status: selectedProject ? (effectiveTarget === "none" ? "analyzed" : "registered") : "needs_review",
-      registeredTo: null,
     });
 
     if (selectedProject && effectiveTarget !== "none") {
@@ -225,10 +314,10 @@ function UploadContent() {
           paymentDueDate: null,
           paidDate: null,
           status: "unbilled",
-          memo: `書類から登録（${form.vendor}）`,
-          documentId: doc.id,
+          memo: form.memo || `書類から登録（${form.vendor}）`,
+          documentId: docId,
         });
-        updateDocument(doc.id, { registeredTo: { kind: "revenue", id: rev.id }, status: "registered" });
+        updateDocument(docId, { registeredTo: { kind: "revenue", id: rev.id }, status: "registered" });
       } else {
         const cost = addCost({
           projectId: selectedProject,
@@ -244,10 +333,10 @@ function UploadContent() {
           paymentDueDate: null,
           paidDate: form.paymentMethod === "invoice" ? null : form.date || null,
           status: form.paymentMethod === "invoice" ? "unpaid" : "paid",
-          memo: "写真から登録",
-          documentId: doc.id,
+          memo: form.memo || "写真から登録",
+          documentId: docId,
         });
-        updateDocument(doc.id, { registeredTo: { kind: "cost", id: cost.id }, status: "registered" });
+        updateDocument(docId, { registeredTo: { kind: "cost", id: cost.id }, status: "registered" });
       }
     }
 
@@ -280,8 +369,11 @@ function UploadContent() {
     setForm(null);
     setSelectedProject(contextProjectId);
     setDone(null);
+    setTaxTouched(false);
     thumbRef.current = null;
-    uploadRef.current = null;
+    docIdRef.current = null;
+    uploadedPathRef.current = null;
+    analyzeProjectRef.current = contextProjectId;
   };
 
   const doneFin = done?.projectId ? projectFinance(done.projectId, db) : null;
@@ -357,13 +449,30 @@ function UploadContent() {
                   </button>
                 ))}
               </div>
+              <div className="mt-4">
+                <Field label="登録する案件（AI読み取り後に変更できます）">
+                  <Select
+                    value={selectedProject ?? ""}
+                    onChange={(e) => setSelectedProject(e.target.value || null)}
+                  >
+                    <option value="">案件未定（あとから紐づけ）</option>
+                    {db.projects
+                      .filter((p) => p.status !== "lost")
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                  </Select>
+                </Field>
+              </div>
               <div className="mt-5 flex justify-between">
                 <Button variant="ghost" onClick={reset}>
                   <ArrowLeft className="h-4 w-4" />
                   撮り直す
                 </Button>
                 <Button onClick={startAnalyze}>
-                  AIで読み取る
+                  アップロードしてAIで読み取る
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -452,9 +561,34 @@ function UploadContent() {
                   <Field label="合計金額（税込）" required>
                     <MoneyInput
                       value={form.amount}
-                      onChange={(v) => setForm({ ...form, amount: v })}
+                      onChange={(v) =>
+                        setForm({
+                          ...form,
+                          amount: v,
+                          // 税額を手で編集していない間は自動計算に追従させる
+                          tax: taxTouched ? form.tax : calcTax(v, "inclusive").tax,
+                        })
+                      }
                     />
                   </Field>
+                  <Field label="うち消費税">
+                    <MoneyInput
+                      value={form.tax}
+                      onChange={(v) => {
+                        setTaxTouched(true);
+                        setForm({ ...form, tax: v });
+                      }}
+                    />
+                  </Field>
+                </div>
+                <Field label="品目・内容">
+                  <Input
+                    value={form.itemsText}
+                    onChange={(e) => setForm({ ...form, itemsText: e.target.value })}
+                    placeholder="例：塗料・シーリング材"
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
                   <Field label="支払方法">
                     <Select
                       value={form.paymentMethod}
@@ -470,14 +604,14 @@ function UploadContent() {
                       ))}
                     </Select>
                   </Field>
+                  <Field label="メモ">
+                    <Input
+                      value={form.memo}
+                      onChange={(e) => setForm({ ...form, memo: e.target.value })}
+                      placeholder="任意"
+                    />
+                  </Field>
                 </div>
-                <Field label="品目・内容">
-                  <Input
-                    value={form.itemsText}
-                    onChange={(e) => setForm({ ...form, itemsText: e.target.value })}
-                    placeholder="例：塗料・シーリング材"
-                  />
-                </Field>
                 {outcome?.result.registrationNumber ? (
                   <p className="text-[11px] text-neutral-400">
                     インボイス登録番号: {outcome.result.registrationNumber}
@@ -536,8 +670,16 @@ function UploadContent() {
               <ArrowLeft className="h-4 w-4" />
               戻る
             </Button>
-            <Button size="lg" onClick={save} disabled={saving || form.amount <= 0}>
-              {saving ? "保存中…" : "この内容で保存する"}
+            <Button
+              size="lg"
+              onClick={save}
+              disabled={saving || (selectedProject !== null && form.target !== "none" && form.amount <= 0)}
+            >
+              {saving
+                ? "保存中…"
+                : selectedProject
+                  ? TARGET_LABELS[form.target]
+                  : TARGET_LABELS.none}
             </Button>
           </div>
         </div>

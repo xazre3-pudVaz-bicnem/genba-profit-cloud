@@ -201,12 +201,25 @@ OCR_MODEL=                             # 省略時 claude-opus-4-8
 OPENAI_API_KEY=                        # AI OCR第二候補
 ```
 
-## OCR / APIキー未設定時の動作
+## AI OCR（本実装）
 
-1. `ANTHROPIC_API_KEY` あり → Claude Visionで実読み取り
-2. なければ `OPENAI_API_KEY` → OpenAI Vision（gpt-4o-mini）
-3. どちらもなし／API失敗 → **モック解析**（自然なサンプル値 + 未設定の案内表示）
-4. 読み取り結果は必ず**確認画面**を経由（半自動）。手入力での修正・登録も常に可能
+`/api/ocr` は本番モードで次の流れで動く（`app/api/ocr/route.ts`）。
+
+1. クライアントが `filePath`（Storageパス）+ `documentId` + ユーザーJWTを送信
+2. サーバーがユーザーJWTスコープのSupabaseクライアントで**Storageから原本を取得**
+   （RLSが効くため他社のファイル・書類は扱えない。取得失敗時はクライアント縮小画像で続行）
+3. `ANTHROPIC_API_KEY` あり → **Claude Vision**（`OCR_MODEL`、省略時 `claude-opus-4-8`）。
+   PDFもClaudeのdocumentブロックでそのまま解析できる
+4. なければ `OPENAI_API_KEY` → OpenAI Vision（gpt-4o-mini。PDF非対応）
+5. 抽出はsnake_case JSON（取引先・宛名・日付・支払期限・請求書番号・インボイス登録番号・
+   合計/税額/小計・明細・支払方法・推定登録先・推定経費カテゴリ・信頼度・全文）。
+   `normalizeOcr` が表記ゆれを内部型へ正規化する
+6. 成功時はサーバーが `documents` の `ocr_text / ai_json / vendor_name / document_date /
+   total_amount / tax_amount / assignment_confidence / status=needs_review` を更新
+7. **失敗・未設定時は必ず200 + モック/手入力フォールバック**。
+   本番モードでの失敗時はサンプル値をフォームやDBへ流し込まず、空フォームで手入力登録に進む
+8. デモモード（`/app?demo=true`）は実APIを呼ばず、常にクライアント側モックで動く
+9. 読み取り結果は必ず**確認画面**を経由（自動登録しない）。すべての項目を編集できる
 
 ## Supabaseテーブル（`supabase/schema.sql`）
 

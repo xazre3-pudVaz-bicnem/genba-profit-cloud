@@ -139,18 +139,29 @@ export interface Cost {
 export interface OcrItem {
   name: string;
   amount?: number;
+  quantity?: number;
+  unit?: string;
+  unitPrice?: number;
 }
 
 export interface OcrResult {
   documentType: DocumentType;
   vendorName: string;
+  customerName?: string; // 宛名・請求先
   documentDate: string; // YYYY-MM-DD
+  dueDate?: string | null; // 支払期限
+  invoiceNumber?: string | null; // 請求書番号
   totalAmount: number;
   taxAmount: number;
+  subtotal?: number | null; // 税抜小計
   items: OcrItem[];
   paymentMethod?: PaymentMethod;
-  addressee?: string; // 宛名
+  addressee?: string; // 宛名（customerNameの別名・後方互換）
   registrationNumber?: string; // インボイス登録番号
+  /** AIが推定した登録先（売上/発注費/材料費/経費/書類のみ） */
+  suggestedTarget?: RegisterTarget;
+  /** AIが推定した経費カテゴリ（登録先が経費のとき） */
+  suggestedCategory?: ExpenseCategory | null;
   confidence: Confidence;
   rawText?: string;
 }

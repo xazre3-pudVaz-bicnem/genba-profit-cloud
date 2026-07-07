@@ -40,7 +40,8 @@ export interface SuggestInput {
 
 export function suggestProjects(input: SuggestInput, db: DB): AssignCandidate[] {
   const { ocr, contextProjectId } = input;
-  const ocrText = [ocr?.rawText, ocr?.addressee, ...(ocr?.items.map((i) => i.name) ?? [])]
+  const addressee = ocr?.customerName || ocr?.addressee;
+  const ocrText = [ocr?.rawText, addressee, ...(ocr?.items.map((i) => i.name) ?? [])]
     .filter(Boolean)
     .join(" ");
 
@@ -66,11 +67,10 @@ export function suggestProjects(input: SuggestInput, db: DB): AssignCandidate[] 
       }
     }
 
-    // 2. 宛名に顧客名が含まれる
+    // 2. 宛名・請求先に顧客名が含まれる
     if (
-      ocr?.addressee &&
-      (contains(ocr.addressee, project.customerName) ||
-        contains(project.customerName, ocr.addressee))
+      addressee &&
+      (contains(addressee, project.customerName) || contains(project.customerName, addressee))
     ) {
       score += 30;
       reasons.push("宛名が顧客名と一致");
