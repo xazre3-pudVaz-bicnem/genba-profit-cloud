@@ -1,70 +1,14 @@
 // ============================================================
 // LP専用コンテンツ（料金・FAQ・業種）
 // アプリ側からはimportしないこと
+// 料金プランの実体は lib/billing/plans.ts（課金の単一ソース）
 // ============================================================
 
-export interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  unit: string;
-  description: string;
-  features: string[];
-  highlighted: boolean;
-}
+import { BILLING_PLANS, type BillingPlan } from "../billing/plans";
 
-export const PLANS: Plan[] = [
-  {
-    id: "light",
-    name: "ライト",
-    price: 9800,
-    unit: "月額（税別）",
-    description: "一人親方・少人数の事業者向け",
-    features: [
-      "案件数 30件まで",
-      "ユーザー 3名まで",
-      "AI読み取り 月100枚",
-      "案件別の収支・利益率管理",
-      "書類の保管・検索",
-      "スマホアプリ利用",
-    ],
-    highlighted: false,
-  },
-  {
-    id: "standard",
-    name: "スタンダード",
-    price: 19800,
-    unit: "月額（税別）",
-    description: "5〜20名規模の工務店・工事会社向け",
-    features: [
-      "案件数 無制限",
-      "ユーザー 10名まで",
-      "AI読み取り 月500枚",
-      "見積書・請求書のPDF発行",
-      "案件ボード・カレンダー",
-      "未請求・未入金アラート",
-      "メールサポート",
-    ],
-    highlighted: true,
-  },
-  {
-    id: "pro",
-    name: "プロ",
-    price: 39800,
-    unit: "月額（税別）",
-    description: "複数拠点・多案件を扱う会社向け",
-    features: [
-      "案件数 無制限",
-      "ユーザー 無制限",
-      "AI読み取り 無制限",
-      "権限のカスタマイズ",
-      "CSVエクスポート",
-      "会計ソフト連携（順次対応）",
-      "優先サポート",
-    ],
-    highlighted: false,
-  },
-];
+export type Plan = BillingPlan;
+
+export const PLANS: Plan[] = BILLING_PLANS;
 
 export const FAQ_ITEMS: { q: string; a: string }[] = [
   {

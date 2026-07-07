@@ -5,7 +5,7 @@ import { FaqList } from "@/components/marketing/sections/faq-section";
 import { Reveal } from "@/components/marketing/reveal";
 import { Button } from "@/components/shared/button";
 import { FAQ_ITEMS, PLANS } from "@/lib/marketing/content";
-import { APP_NAME } from "@/lib/shared/config";
+import { APP_NAME, CONTACT_EMAIL } from "@/lib/shared/config";
 import { appAuthUrl } from "@/lib/shared/urls";
 import { cn } from "@/lib/shared/utils";
 
@@ -16,16 +16,14 @@ export const metadata: Metadata = {
 };
 
 const COMPARISON: { label: string; values: (string | boolean)[] }[] = [
-  { label: "案件数", values: ["30件まで", "無制限", "無制限"] },
-  { label: "ユーザー数", values: ["3名", "10名", "無制限"] },
-  { label: "AI読み取り", values: ["月100枚", "月500枚", "無制限"] },
-  { label: "案件別の収支・利益率", values: [true, true, true] },
-  { label: "書類の保管・検索", values: [true, true, true] },
+  { label: "メンバー数", values: ["1名", "3名まで", "10名まで"] },
+  { label: "書類アップロード", values: ["月50枚", "月300枚", "月1,000枚"] },
+  { label: "案件管理・収支・利益率", values: [true, true, true] },
+  { label: "売上・原価管理", values: [true, true, true] },
   { label: "案件ボード・カレンダー", values: [true, true, true] },
+  { label: "AI OCR読み取り", values: [false, true, true] },
   { label: "見積書・請求書PDF", values: [false, true, true] },
-  { label: "未請求・未入金アラート", values: [false, true, true] },
-  { label: "権限のカスタマイズ", values: [false, false, true] },
-  { label: "CSVエクスポート", values: [false, false, true] },
+  { label: "未請求・未入金アラート", values: [true, true, true] },
   { label: "サポート", values: ["メール", "メール", "優先対応"] },
 ];
 
@@ -77,9 +75,9 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href={appAuthUrl("/signup")} className="mt-6">
+                  <Link href={appAuthUrl(`/signup?plan=${plan.id}`)} className="mt-6">
                     <Button className="w-full" variant={plan.highlighted ? "primary" : "secondary"}>
-                      14日間無料で試す
+                      無料で試す
                     </Button>
                   </Link>
                 </div>
@@ -148,10 +146,22 @@ export default function PricingPage() {
           <Reveal delay={0.1} className="mt-8">
             <FaqList items={FAQ_ITEMS.slice(0, 4)} />
           </Reveal>
-          <Reveal delay={0.15} className="mt-10 text-center">
-            <Link href={appAuthUrl("/signup")}>
-              <Button size="lg">無料で試してみる</Button>
-            </Link>
+          <Reveal delay={0.15} className="mt-10">
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link href={appAuthUrl("/signup")}>
+                <Button size="lg">無料で試す</Button>
+              </Link>
+              <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`${APP_NAME} 導入相談`)}`}>
+                <Button size="lg" variant="secondary">
+                  相談する
+                </Button>
+              </a>
+              <Link href="/demo">
+                <Button size="lg" variant="ghost">
+                  デモを見る
+                </Button>
+              </Link>
+            </div>
           </Reveal>
         </div>
       </section>

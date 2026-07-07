@@ -43,7 +43,9 @@ export function appUrl(path = ""): string {
 }
 
 /** ログイン・新規登録へのURL（認証はアプリ側ドメインに属する） */
-export function appAuthUrl(path: "/login" | "/signup"): string {
+export function appAuthUrl(
+  path: "/login" | "/signup" | `/signup?${string}` | `/login?${string}`
+): string {
   const { origin } = appBase();
   return `${origin}${path}`;
 }

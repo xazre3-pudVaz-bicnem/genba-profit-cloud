@@ -2,7 +2,7 @@
 
 import { Info, Sparkles, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/shared/button";
 import { Input } from "@/components/shared/input";
@@ -16,10 +16,14 @@ import {
   updateCompany,
 } from "@/lib/app/data-store";
 import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
+import { getPlan } from "@/lib/billing/plans";
 import { appAuthUrl } from "@/lib/shared/urls";
 
 export function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // 料金ページから /signup?plan=standard の形式で引き継ぐ（Stripe接続時に使用）
+  const selectedPlan = getPlan(searchParams.get("plan"));
   const [companyName, setCompanyName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -42,7 +46,8 @@ export function SignupForm() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name, company_name: companyName } },
+      // plan はStripe課金の接続時に初期プランとして使用する
+      options: { data: { name, company_name: companyName, plan: selectedPlan?.id ?? null } },
     });
     if (error) {
       setLoading(false);
@@ -84,6 +89,20 @@ export function SignupForm() {
           ログイン
         </Link>
       </p>
+
+      {selectedPlan ? (
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3">
+          <div>
+            <p className="text-xs font-bold text-brand-800">{selectedPlan.name}プランを選択中</p>
+            <p className="mt-0.5 text-[11px] text-brand-700">
+              月額 ¥{selectedPlan.price.toLocaleString("ja-JP")}（税別）・14日間無料トライアル
+            </p>
+          </div>
+          <Link href="/pricing" className="text-[11px] font-medium text-brand-600 hover:underline">
+            変更
+          </Link>
+        </div>
+      ) : null}
 
       <div className="mt-6 space-y-4">
         {configured ? (

@@ -21,6 +21,14 @@ export function MarketingFooter() {
         { label: "ログイン", href: appAuthUrl("/login") },
       ],
     },
+    {
+      title: "規約・法務",
+      items: [
+        { label: "利用規約", href: "/terms" },
+        { label: "プライバシーポリシー", href: "/privacy" },
+        { label: "特定商取引法に基づく表記", href: "/commercial-law" },
+      ],
+    },
   ];
 
   return (
@@ -34,7 +42,7 @@ export function MarketingFooter() {
               現場仕事の「案件ごとの利益」を見える化するクラウドサービスです。
             </p>
           </div>
-          <div className="flex gap-16">
+          <div className="flex flex-wrap gap-x-16 gap-y-8">
             {groups.map((group) => (
               <div key={group.title}>
                 <p className="text-xs font-bold text-neutral-900">{group.title}</p>

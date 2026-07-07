@@ -21,14 +21,28 @@ npm run dev        # http://localhost:3000
 - `/demo` … デモ紹介ページ →「デモ管理画面を開く」で `/app?demo=true`
 - `/app` … 管理システム（未ログイン時は `/login` へ。`?demo=true` ならデモセッションを自動開始）
 
-### 本番構成（任意）
+### 本番モードの使い方
 
 1. `.env.example` を `.env.local` にコピー
 2. Supabaseプロジェクトを作成し、`supabase/schema.sql` をSQL Editorで実行
 3. Storageで `documents` バケット（非公開）を作成
-4. `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定 → メール認証・画像ストレージが有効化
-5. `ANTHROPIC_API_KEY`（または `OPENAI_API_KEY`）を設定 → AI OCRが実読み取りに切り替わる
-6. Vercelへデプロイ（環境変数を同様に設定）
+4. （推奨）`supabase/storage-company-assets.sql` を実行 → 会社ロゴ用の公開バケットを作成
+5. `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定 → メール認証・画像ストレージが有効化
+6. `ANTHROPIC_API_KEY`（または `OPENAI_API_KEY`）を設定 → AI OCRが実読み取りに切り替わる
+7. Vercelへデプロイ（環境変数を同様に設定）→ `/signup` で会社登録して利用開始
+
+### デモモードの使い方
+
+環境変数なしで `npm run dev` → `/app?demo=true` を開くだけ。
+サンプル会社・案件・収支・書類入りで全機能を試せる（ブラウザ内保存・実APIは呼ばない）。
+LPの「デモを見る」→「デモ管理画面を開く」からも同じ画面に入れる。
+
+### 主な機能
+
+案件管理（一覧・ボード・カレンダー・詳細9タブ）／売上・原価（発注費・材料費・経費）管理／
+利益・利益率の自動計算（赤字・低利益の警告）／レシート・請求書の**AI OCR読み取り**（写真から半自動登録）／
+書類保管（Storage + 署名URLプレビュー）／見積書・請求書（明細・A4帳票・領収書発行・売上連動）／
+会社設定（帳票の発行元・振込先・ロゴ）／メンバー管理（権限4種 + RLS）／デモモード
 
 ---
 
@@ -162,13 +176,14 @@ NEXT_PUBLIC_APP_URL         # アプリ側URL（例: https://app.genba-profit-cl
 
 ## 画面一覧
 
-### LP側（SEO対象）
+### LP側（SEO対象・sitemap掲載）
 | パス | 内容 |
 |---|---|
 | `/` | LP（ヒーロー・課題・5ステップ・機能9・画面モック・業種8・料金・FAQ・CTA、JSON-LD付き） |
 | `/features` | 機能詳細 |
-| `/pricing` | 料金 + プラン比較表 |
+| `/pricing` | 料金 + プラン比較表（プラン定義は `lib/billing/plans.ts`） |
 | `/demo` | デモ紹介（試せること・注意書き・デモ管理画面を開く） |
+| `/terms` `/privacy` `/commercial-law` | 利用規約・プライバシーポリシー・特商法（ドラフト。フッターからリンク） |
 
 ### 認証
 | パス | 内容 |
@@ -192,13 +207,18 @@ NEXT_PUBLIC_APP_URL         # アプリ側URL（例: https://app.genba-profit-cl
 
 ```bash
 NEXT_PUBLIC_APP_NAME=現場収支クラウド   # サービス名（あとで変更可）
-NEXT_PUBLIC_MARKETING_URL=             # LP側URL（分離後に設定）
+NEXT_PUBLIC_MARKETING_URL=             # LP側URL（SEO/OGP・分離後のCTA切替に使用）
 NEXT_PUBLIC_APP_URL=                   # アプリ側URL（分離後に設定）
 NEXT_PUBLIC_SUPABASE_URL=              # ─┐ 未設定ならデモモード
 NEXT_PUBLIC_SUPABASE_ANON_KEY=         # ─┘
 ANTHROPIC_API_KEY=                     # AI OCR第一候補（Claude Vision）
 OCR_MODEL=                             # 省略時 claude-opus-4-8
 OPENAI_API_KEY=                        # AI OCR第二候補
+NEXT_PUBLIC_CONTACT_EMAIL=             # 「相談する」CTA・法務ページの窓口（省略時は仮アドレス）
+NEXT_PUBLIC_OPERATOR_NAME=             # 運営事業者名（省略時: 株式会社サイプレス）
+NEXT_PUBLIC_STRIPE_PRICE_LIGHT=        # ─┐ Stripe接続時にPrice IDを設定
+NEXT_PUBLIC_STRIPE_PRICE_STANDARD=     #  │（未設定でも表示・導線は動作）
+NEXT_PUBLIC_STRIPE_PRICE_PRO=          # ─┘
 ```
 
 ## AI OCR（本実装）
@@ -227,7 +247,22 @@ companies / profiles / projects / revenues / costs / documents /
 estimates + estimate_items / invoices + invoice_items
 
 RLS: `current_company_id()` により全テーブルを会社単位で分離。viewerロールは書き込み不可。
-Storageは `{company_id}/...` パスで分離。
+
+### Storageバケット
+
+| バケット | 公開 | 用途 | 作成方法 |
+|---|---|---|---|
+| `documents` | 非公開 | 書類（レシート・請求書等）の原本。署名URLで表示 | ダッシュボードで作成（ポリシーは `schema.sql`） |
+| `company-assets` | 公開 | 会社ロゴ。公開URLで配信 | `supabase/storage-company-assets.sql` を実行（未作成でもdocumentsへ自動フォールバック） |
+
+パスはどちらも `{company_id}/...` で始まり、RLSポリシーで自社フォルダのみ書き込み可。
+
+### 課金プラン（Stripe導入準備）
+
+- プラン定義は `lib/billing/plans.ts`（価格・上限・Stripe Price IDの単一ソース）
+- `/pricing` の「無料で試す」→ `/signup?plan=light|standard|pro` でプランを引き継ぎ、
+  サインアップ時に `user_metadata.plan` として保存（Stripe接続時に初期プランとして使用）
+- Stripe API接続は未実装。接続時は Price ID を環境変数に設定し、Checkout導線を追加する
 
 ---
 
@@ -265,25 +300,29 @@ Storageは `{company_id}/...` パスで分離。
 - 本番モードとデモモードはlocalStorage名前空間を分離（デモ操作が実データ表示に混ざらない）
 - 初回ログイン時、プロフィール未作成なら会社+プロフィールを自動作成（自己修復）
 
-## 今後追加すべき機能
+## 今後の予定
 
-- Supabase移行の残りエンティティ（上記[未]）と Realtime購読への置き換え
+- Stripe課金の本接続（Checkout・プラン上限の実装。土台は `lib/billing/plans.ts` に準備済み）
+- メンバー招待メール（Supabase Auth Admin invite。UIは準備中表示で用意済み）
+- Realtime購読への置き換え（複数端末の同期）
 - freee / マネーフォワードCSV連携、過去案件CSVインポート
 - 銀行API連携・入金自動消込
 - 協力会社招待・発注書送付、工程表・写真台帳
 - プッシュ通知（期日超過・未確認書類）、Service Worker
-- Stripe課金（プラン制限の実装）
-- お問い合わせフォーム・特商法/規約/プライバシーページ
+- お問い合わせフォーム（現在はメールCTA）
 
 ## デプロイ前チェックリスト
 
+- [x] Supabase `schema.sql` 適用・`documents` バケット作成・RLS動作確認
+- [x] `ANTHROPIC_API_KEY` 設定とOCR精度確認（本番URLで実証済み）
+- [x] OGP画像（`public/ogp.png`）・favicon・og:image/og:url設定
+- [x] 料金プランの整備（`lib/billing/plans.ts`）
+- [x] 特商法・プライバシーポリシー・利用規約ページ（ドラフト）
+- [x] `/app` noindex・robots.txt Disallow・sitemapはLP側のみ
 - [ ] `NEXT_PUBLIC_MARKETING_URL`（および分離後は `NEXT_PUBLIC_APP_URL`）を本番ドメインに設定
-- [ ] `NEXT_PUBLIC_APP_NAME` を正式サービス名に変更
-- [ ] Supabase `schema.sql` 適用・`documents` バケット作成・RLS動作確認
-- [ ] `ANTHROPIC_API_KEY` 設定とOCR精度確認（設定画面の接続状態で確認可能）
-- [ ] OGP画像（1200×630）の用意
-- [ ] 料金（`lib/marketing/content.ts`）の正式金額への更新
-- [ ] 特商法・プライバシーポリシー・利用規約ページの追加
+- [ ] `NEXT_PUBLIC_CONTACT_EMAIL` / `NEXT_PUBLIC_OPERATOR_NAME` を正式な値に設定
+- [ ] 特商法の所在地・連絡先を正式情報へ差し替え（法務確認）
+- [ ] `supabase/storage-company-assets.sql` の適用（会社ロゴの公開URL配信）
 - [ ] 印刷（PDF）表示確認・Lighthouse計測
 
 ## スクリプト
