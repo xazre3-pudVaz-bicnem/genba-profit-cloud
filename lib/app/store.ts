@@ -126,6 +126,18 @@ export function replaceDocuments(documents: DocumentRec[]) {
   commit({ ...cur, documents });
 }
 
+/** Supabaseから取得した見積でローカルキャッシュを置き換える（本番モード用） */
+export function replaceEstimates(estimates: Estimate[]) {
+  const cur = getDB();
+  commit({ ...cur, estimates });
+}
+
+/** Supabaseから取得した請求でローカルキャッシュを置き換える（本番モード用） */
+export function replaceInvoices(invoices: Invoice[]) {
+  const cur = getDB();
+  commit({ ...cur, invoices });
+}
+
 /** バックアップ用JSONエクスポート */
 export function exportDataJSON(): string {
   const { hydrated: _hydrated, ...rest } = getDB();

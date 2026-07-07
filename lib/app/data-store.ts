@@ -15,9 +15,10 @@
 //   ※ /app?demo=true はデモセッションになるため常に demoStore
 //
 // 移行状況:
-//   [済] projects / revenues / costs / documents（一覧取得・作成・編集・削除）
+//   [済] projects / revenues / costs / documents / estimates / invoices
+//        （一覧取得・作成・編集・削除。見積・請求は明細テーブルも同期）
 //        書類ファイルは Storage documents バケット + 署名URLプレビュー
-//   [未] estimates / invoices / members / company
+//   [未] members / company
 //        → lib/app/supabase-store.ts に sp〇〇 を追加し、下の supabaseStore に
 //          割り当てるだけで順次移行できる
 // ============================================================
@@ -26,14 +27,20 @@ import * as demo from "./store";
 import {
   spAddCost,
   spAddDocument,
+  spAddEstimate,
+  spAddInvoice,
   spAddProject,
   spAddRevenue,
   spRemoveCost,
   spRemoveDocument,
+  spRemoveEstimate,
+  spRemoveInvoice,
   spRemoveProject,
   spRemoveRevenue,
   spUpdateCost,
   spUpdateDocument,
+  spUpdateEstimate,
+  spUpdateInvoice,
   spUpdateProject,
   spUpdateRevenue,
   spUploadDocumentFile,
@@ -117,8 +124,9 @@ export const demoStore: DataStore = {
 
 /**
  * Supabase実装。
- * projects / revenues / costs / documents はDBへwrite-through同期、
- * 未移行のエンティティはローカルキャッシュ（live名前空間）で動作する。
+ * projects / revenues / costs / documents / estimates / invoices は
+ * DBへwrite-through同期、未移行のエンティティ（members / company）は
+ * ローカルキャッシュ（live名前空間）で動作する。
  */
 export const supabaseStore: DataStore = {
   ...demoStore,
@@ -134,6 +142,12 @@ export const supabaseStore: DataStore = {
   addDocument: spAddDocument,
   updateDocument: spUpdateDocument,
   removeDocument: spRemoveDocument,
+  addEstimate: spAddEstimate,
+  updateEstimate: spUpdateEstimate,
+  removeEstimate: spRemoveEstimate,
+  addInvoice: spAddInvoice,
+  updateInvoice: spUpdateInvoice,
+  removeInvoice: spRemoveInvoice,
 };
 
 /**

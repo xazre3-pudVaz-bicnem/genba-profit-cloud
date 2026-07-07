@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, FileX2, Pencil, Printer, ReceiptText, Trash2 } from "lucide-react";
+import { CheckCircle2, FileX2, Pencil, Printer, ReceiptText, Trash2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -81,6 +81,37 @@ export default function InvoiceDetailPage() {
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   入金を記録
+                </Button>
+              ) : null}
+              {invoice.status !== "draft" && invoice.projectId && !linkedRevenue ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const projectId = invoice.projectId;
+                    if (!projectId) return;
+                    const isPaid = invoice.status === "paid";
+                    addRevenue({
+                      projectId,
+                      title: invoice.title,
+                      amount: invoice.total,
+                      taxType: "exclusive",
+                      taxAmount: invoice.taxAmount,
+                      billingDueDate: invoice.invoiceDate,
+                      billedDate: invoice.invoiceDate,
+                      paymentDueDate: invoice.dueDate,
+                      paidDate: isPaid ? (invoice.paidDate ?? todayISO()) : null,
+                      status: isPaid ? "paid" : "billed",
+                      memo: `請求書 ${invoice.invoiceNumber} から自動登録`,
+                      documentId: null,
+                    });
+                    toast({
+                      title: "売上に反映しました",
+                      description: `${yen(invoice.total)} を案件の売上に計上しました`,
+                    });
+                  }}
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  この請求書を売上に反映
                 </Button>
               ) : null}
               {invoice.status === "draft" ? (

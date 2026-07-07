@@ -233,11 +233,16 @@ Storageは `{company_id}/...` パスで分離。
 
 ## Supabase移行状況
 
-- **[済] projects / revenues / costs / documents** — 一覧取得・作成・編集・削除がDB保存（`lib/app/supabase-store.ts`）。
+- **[済] projects / revenues / costs / documents / estimates / invoices** —
+  一覧取得・作成・編集・削除がDB保存（`lib/app/supabase-store.ts`）。
   ローカルキャッシュへ楽観反映→バックグラウンドでwrite-through同期（直列キューで実行順を保証）。
   失敗時はトースト+該当エンティティのDB再取得でUIを戻す。
   案件詳細・案件一覧・ダッシュボードの収支は `lib/app/calc.ts` がこのキャッシュから自動計算するため、
   すべてSupabase上の実データ連動になる。
+- **見積・請求の明細** — `estimate_items` / `invoice_items` を親と同期
+  （作成時insert・編集時は全置換・親削除時はFK cascade。取得は明細埋め込みSELECT + sort_order順）。
+  税率は `lib/shared/format.ts` の `TAX_RATE` / `taxFromSubtotal` に集約（変更はここ1か所）。
+  請求書→売上への反映はメモの請求書番号で紐づけ、二重反映を防止。A4帳票は `components/app/print-doc.tsx`。
 - **書類ファイル（Storage）** — 本番モードでは原本を非公開バケット `documents` へ保存。
   パスは `{company_id}/projects/{project_id}/documents/{timestamp}-{filename}`
   （案件未定は `{company_id}/unassigned/documents/...`）。

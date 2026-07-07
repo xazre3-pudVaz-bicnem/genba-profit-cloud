@@ -1,7 +1,8 @@
 "use client";
 
 // ============================================================
-// Supabase同期ストア（projects / revenues / costs / documents 移行済み）
+// Supabase同期ストア
+// （projects / revenues / costs / documents / estimates / invoices 移行済み）
 //
 // 方針: UIの応答性を保つため「ローカルキャッシュへ楽観反映 →
 // バックグラウンドでSupabaseへ書き込み」のwrite-through方式。
@@ -22,7 +23,14 @@
 import { toast } from "@/components/shared/toast";
 import { uid } from "../shared/format";
 import * as local from "./store";
-import type { CostInput, DocumentInput, ProjectInput, RevenueInput } from "./store";
+import type {
+  CostInput,
+  DocumentInput,
+  EstimateInput,
+  InvoiceInput,
+  ProjectInput,
+  RevenueInput,
+} from "./store";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
 import { safeStorageFileName, validateDocumentFile } from "./upload";
 import type {
@@ -33,7 +41,12 @@ import type {
   DocumentRec,
   DocumentStatus,
   DocumentType,
+  Estimate,
+  EstimateStatus,
   ExpenseCategory,
+  Invoice,
+  InvoiceStatus,
+  LineItem,
   OcrResult,
   PaymentMethod,
   Project,
@@ -472,6 +485,200 @@ function documentPatchToRow(patch: Partial<DocumentInput>): Record<string, unkno
   return row;
 }
 
+// ---------- 見積・請求（親テーブル + 明細テーブル） ----------
+
+interface DocItemRow {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  amount: number;
+  sort_order: number;
+}
+
+function rowsToLineItems(rows: DocItemRow[] | null): LineItem[] {
+  return [...(rows ?? [])]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      quantity: r.quantity,
+      unit: r.unit,
+      unitPrice: r.unit_price,
+      amount: r.amount,
+    }));
+}
+
+/** 明細行 → 明細テーブルの行（parentKey: "estimate_id" | "invoice_id"） */
+function lineItemsToRows(
+  items: LineItem[],
+  parentKey: string,
+  parentId: string
+): Record<string, unknown>[] {
+  return items.map((item, i) => ({
+    // デモ由来など、UUIDでないIDはDB側で採番し直す
+    ...(UUID_RE.test(item.id) ? { id: item.id } : {}),
+    [parentKey]: parentId,
+    name: item.name,
+    quantity: item.quantity,
+    unit: item.unit,
+    unit_price: item.unitPrice,
+    amount: item.amount,
+    sort_order: i,
+  }));
+}
+
+interface EstimateRow {
+  id: string;
+  project_id: string | null;
+  estimate_number: string;
+  customer_name: string;
+  title: string;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  issue_date: string | null;
+  valid_until: string | null;
+  status: EstimateStatus;
+  memo: string | null;
+  created_at: string;
+  updated_at: string;
+  items: DocItemRow[] | null;
+}
+
+function rowToEstimate(row: EstimateRow): Estimate {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    estimateNumber: row.estimate_number,
+    customerName: row.customer_name,
+    title: row.title,
+    items: rowsToLineItems(row.items),
+    subtotal: row.subtotal,
+    taxAmount: row.tax_amount,
+    total: row.total,
+    issueDate: row.issue_date,
+    validUntil: row.valid_until,
+    status: row.status,
+    memo: row.memo ?? "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function estimateToRow(estimate: Estimate, company: string): Record<string, unknown> {
+  return {
+    id: estimate.id,
+    company_id: company,
+    project_id: estimate.projectId && UUID_RE.test(estimate.projectId) ? estimate.projectId : null,
+    estimate_number: estimate.estimateNumber,
+    customer_name: estimate.customerName,
+    title: estimate.title,
+    subtotal: estimate.subtotal,
+    tax_amount: estimate.taxAmount,
+    total: estimate.total,
+    issue_date: estimate.issueDate,
+    valid_until: estimate.validUntil,
+    status: estimate.status,
+    memo: estimate.memo,
+  };
+}
+
+function estimatePatchToRow(patch: Partial<EstimateInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.projectId !== undefined) {
+    row.project_id = patch.projectId && UUID_RE.test(patch.projectId) ? patch.projectId : null;
+  }
+  if (patch.customerName !== undefined) row.customer_name = patch.customerName;
+  if (patch.title !== undefined) row.title = patch.title;
+  if (patch.subtotal !== undefined) row.subtotal = patch.subtotal;
+  if (patch.taxAmount !== undefined) row.tax_amount = patch.taxAmount;
+  if (patch.total !== undefined) row.total = patch.total;
+  if (patch.issueDate !== undefined) row.issue_date = patch.issueDate;
+  if (patch.validUntil !== undefined) row.valid_until = patch.validUntil;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.memo !== undefined) row.memo = patch.memo;
+  return row;
+}
+
+interface InvoiceRow {
+  id: string;
+  project_id: string | null;
+  invoice_number: string;
+  customer_name: string;
+  title: string;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  invoice_date: string | null;
+  due_date: string | null;
+  paid_date: string | null;
+  status: InvoiceStatus;
+  memo: string | null;
+  created_at: string;
+  updated_at: string;
+  items: DocItemRow[] | null;
+}
+
+function rowToInvoice(row: InvoiceRow): Invoice {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    invoiceNumber: row.invoice_number,
+    customerName: row.customer_name,
+    title: row.title,
+    items: rowsToLineItems(row.items),
+    subtotal: row.subtotal,
+    taxAmount: row.tax_amount,
+    total: row.total,
+    invoiceDate: row.invoice_date,
+    dueDate: row.due_date,
+    paidDate: row.paid_date,
+    status: row.status,
+    memo: row.memo ?? "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function invoiceToRow(invoice: Invoice, company: string): Record<string, unknown> {
+  return {
+    id: invoice.id,
+    company_id: company,
+    project_id: invoice.projectId && UUID_RE.test(invoice.projectId) ? invoice.projectId : null,
+    invoice_number: invoice.invoiceNumber,
+    customer_name: invoice.customerName,
+    title: invoice.title,
+    subtotal: invoice.subtotal,
+    tax_amount: invoice.taxAmount,
+    total: invoice.total,
+    invoice_date: invoice.invoiceDate,
+    due_date: invoice.dueDate,
+    paid_date: invoice.paidDate,
+    status: invoice.status,
+    memo: invoice.memo,
+  };
+}
+
+function invoicePatchToRow(patch: Partial<InvoiceInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.projectId !== undefined) {
+    row.project_id = patch.projectId && UUID_RE.test(patch.projectId) ? patch.projectId : null;
+  }
+  if (patch.customerName !== undefined) row.customer_name = patch.customerName;
+  if (patch.title !== undefined) row.title = patch.title;
+  if (patch.subtotal !== undefined) row.subtotal = patch.subtotal;
+  if (patch.taxAmount !== undefined) row.tax_amount = patch.taxAmount;
+  if (patch.total !== undefined) row.total = patch.total;
+  if (patch.invoiceDate !== undefined) row.invoice_date = patch.invoiceDate;
+  if (patch.dueDate !== undefined) row.due_date = patch.dueDate;
+  if (patch.paidDate !== undefined) row.paid_date = patch.paidDate;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.memo !== undefined) row.memo = patch.memo;
+  return row;
+}
+
 // ------------------------------------------------------------
 // 取得（一覧・詳細・ダッシュボードはローカルキャッシュ経由で参照される）
 // ------------------------------------------------------------
@@ -528,6 +735,32 @@ async function refetchDocuments(): Promise<void> {
   local.replaceDocuments((data as unknown as DocumentRow[]).map(rowToDocument));
 }
 
+async function refetchEstimates(): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { data, error } = await sb
+    .from("estimates")
+    .select(
+      "id,project_id,estimate_number,customer_name,title,subtotal,tax_amount,total,issue_date,valid_until,status,memo,created_at,updated_at,items:estimate_items(id,name,quantity,unit,unit_price,amount,sort_order)"
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  local.replaceEstimates((data as unknown as EstimateRow[]).map(rowToEstimate));
+}
+
+async function refetchInvoices(): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { data, error } = await sb
+    .from("invoices")
+    .select(
+      "id,project_id,invoice_number,customer_name,title,subtotal,tax_amount,total,invoice_date,due_date,paid_date,status,memo,created_at,updated_at,items:invoice_items(id,name,quantity,unit,unit_price,amount,sort_order)"
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  local.replaceInvoices((data as unknown as InvoiceRow[]).map(rowToInvoice));
+}
+
 let hydrating = false;
 
 /**
@@ -541,7 +774,14 @@ export async function hydrateFromSupabase(): Promise<void> {
   hydrating = true;
   try {
     await ensureCompanyId();
-    await Promise.all([refetchProjects(), refetchRevenues(), refetchCosts(), refetchDocuments()]);
+    await Promise.all([
+      refetchProjects(),
+      refetchRevenues(),
+      refetchCosts(),
+      refetchDocuments(),
+      refetchEstimates(),
+      refetchInvoices(),
+    ]);
   } catch (err) {
     notifySyncError("データの取得", err);
   } finally {
@@ -845,5 +1085,133 @@ export function spRemoveDocument(id: string): void {
       await refetchRevenues();
       await refetchCosts();
     }
+  );
+}
+
+// ---------- 見積 ----------
+
+/** 明細テーブルを全置換する（親の作成・編集で共用） */
+async function replaceItemRows(
+  table: "estimate_items" | "invoice_items",
+  parentKey: "estimate_id" | "invoice_id",
+  parentId: string,
+  items: LineItem[]
+): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { error: delError } = await sb.from(table).delete().eq(parentKey, parentId);
+  if (delError) throw delError;
+  if (items.length === 0) return;
+  const { error: insError } = await sb.from(table).insert(lineItemsToRows(items, parentKey, parentId));
+  if (insError) throw insError;
+}
+
+export function spAddEstimate(input: EstimateInput): Estimate {
+  const estimate = local.addEstimate(input);
+  syncInBackground(
+    "見積の作成",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      const company = await requireCompanyId();
+      const { error } = await sb.from("estimates").insert(estimateToRow(estimate, company));
+      if (error) throw error;
+      await replaceItemRows("estimate_items", "estimate_id", estimate.id, estimate.items);
+    },
+    refetchEstimates
+  );
+  return estimate;
+}
+
+export function spUpdateEstimate(id: string, patch: Partial<EstimateInput>): void {
+  local.updateEstimate(id, patch);
+  syncInBackground(
+    "見積の更新",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const row = estimatePatchToRow(patch);
+      if (Object.keys(row).length > 0) {
+        const { error } = await sb.from("estimates").update(row).eq("id", id);
+        if (error) throw error;
+      }
+      if (patch.items !== undefined) {
+        await replaceItemRows("estimate_items", "estimate_id", id, patch.items);
+      }
+    },
+    refetchEstimates
+  );
+}
+
+export function spRemoveEstimate(id: string): void {
+  local.removeEstimate(id);
+  syncInBackground(
+    "見積の削除",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      // 明細はFKのcascadeで一緒に削除される
+      const { error } = await sb.from("estimates").delete().eq("id", id);
+      if (error) throw error;
+    },
+    refetchEstimates
+  );
+}
+
+// ---------- 請求 ----------
+
+export function spAddInvoice(input: InvoiceInput): Invoice {
+  const invoice = local.addInvoice(input);
+  syncInBackground(
+    "請求書の作成",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      const company = await requireCompanyId();
+      const { error } = await sb.from("invoices").insert(invoiceToRow(invoice, company));
+      if (error) throw error;
+      await replaceItemRows("invoice_items", "invoice_id", invoice.id, invoice.items);
+    },
+    refetchInvoices
+  );
+  return invoice;
+}
+
+export function spUpdateInvoice(id: string, patch: Partial<InvoiceInput>): void {
+  local.updateInvoice(id, patch);
+  syncInBackground(
+    "請求書の更新",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const row = invoicePatchToRow(patch);
+      if (Object.keys(row).length > 0) {
+        const { error } = await sb.from("invoices").update(row).eq("id", id);
+        if (error) throw error;
+      }
+      if (patch.items !== undefined) {
+        await replaceItemRows("invoice_items", "invoice_id", id, patch.items);
+      }
+    },
+    refetchInvoices
+  );
+}
+
+export function spRemoveInvoice(id: string): void {
+  local.removeInvoice(id);
+  syncInBackground(
+    "請求書の削除",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      // 明細はFKのcascadeで一緒に削除される
+      const { error } = await sb.from("invoices").delete().eq("id", id);
+      if (error) throw error;
+    },
+    refetchInvoices
   );
 }
