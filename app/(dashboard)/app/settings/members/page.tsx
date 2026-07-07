@@ -1,31 +1,75 @@
 "use client";
 
-import { Info, Trash2, UserPlus, Users } from "lucide-react";
+import { Info, ShieldAlert, Trash2, UserPlus, Users } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { PageContainer, AppPageHeader } from "@/components/app/app-page-header";
 import { Badge } from "@/components/shared/badge";
 import { Button } from "@/components/shared/button";
 import { ConfirmDialog, Dialog } from "@/components/shared/dialog";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Input } from "@/components/shared/input";
 import { Field } from "@/components/shared/label";
 import { Select } from "@/components/shared/select";
 import { PageSkeleton } from "@/components/shared/skeleton";
 import { toast } from "@/components/shared/toast";
 import { ROLES } from "@/lib/app/constants";
-import { addMember, removeMember, updateMember, useDB } from "@/lib/app/data-store";
+import { formatDate } from "@/lib/shared/format";
+import { addMember, removeMember, updateMember, useDB, useSession } from "@/lib/app/data-store";
+import { canManageCompany } from "@/lib/app/permissions";
 import type { Member, Role } from "@/lib/app/types";
 
 export default function MembersPage() {
   const db = useDB();
+  const session = useSession();
+  const isDemo = session?.mode !== "supabase";
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invite, setInvite] = useState({ name: "", email: "", role: "staff" as Role });
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
 
   if (!db.hydrated) return <PageSkeleton />;
 
+  // メンバー管理はオーナー・管理者のみ
+  if (!canManageCompany(session?.role)) {
+    return (
+      <PageContainer className="max-w-3xl">
+        <AppPageHeader title="メンバー管理" backHref="/app/settings" backLabel="会社設定" />
+        <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-card">
+          <EmptyState
+            icon={ShieldAlert}
+            title="メンバー管理を開く権限がありません"
+            description="メンバーの一覧・権限変更はオーナー・管理者のみ利用できます。"
+            action={
+              <Link href="/app/settings">
+                <Button variant="secondary">会社設定へ戻る</Button>
+              </Link>
+            }
+          />
+        </div>
+      </PageContainer>
+    );
+  }
+
+  /** 自分自身の行か（自己削除・自己降格の防止に使う） */
+  const isSelf = (m: Member) => m.email === session?.email;
+  const ownerCount = db.members.filter((m) => m.role === "owner").length;
+
   const sendInvite = () => {
-    if (!invite.name.trim() || !invite.email.trim()) {
-      toast({ title: "名前とメールアドレスを入力してください", variant: "error" });
+    if (!invite.email.trim()) {
+      toast({ title: "メールアドレスを入力してください", variant: "error" });
+      return;
+    }
+    if (!isDemo) {
+      // 本番の招待メール送信は次のアップデートで対応
+      toast({
+        title: "招待機能は準備中です",
+        description: "現在は登録済みメンバーの権限変更・削除のみ行えます",
+      });
+      setInviteOpen(false);
+      return;
+    }
+    if (!invite.name.trim()) {
+      toast({ title: "名前を入力してください", variant: "error" });
       return;
     }
     addMember({ name: invite.name.trim(), email: invite.email.trim(), role: invite.role });
@@ -70,11 +114,23 @@ export default function MembersPage() {
                   {m.role === "owner" ? (
                     <Badge className="border-brand-200 bg-brand-50 text-brand-700">オーナー</Badge>
                   ) : null}
+                  {isSelf(m) ? (
+                    <Badge className="border-neutral-200 bg-neutral-100 text-neutral-500">自分</Badge>
+                  ) : null}
                 </p>
                 <p className="truncate text-[11px] text-neutral-400">{m.email}</p>
+                <p className="text-[10px] text-neutral-400 tnum">
+                  登録 {formatDate(m.createdAt)}
+                  {m.updatedAt ? `・更新 ${formatDate(m.updatedAt)}` : ""}
+                </p>
               </div>
-              {m.role === "owner" ? (
-                <span className="text-[11px] text-neutral-400">{ROLES[m.role].description}</span>
+              {m.role === "owner" || isSelf(m) ? (
+                // オーナー（最低1人を保証）と自分自身は変更・削除不可
+                <span className="text-[11px] text-neutral-400">
+                  {m.role === "owner" && ownerCount <= 1
+                    ? ROLES[m.role].description
+                    : ROLES[m.role].label}
+                </span>
               ) : (
                 <>
                   <Select
@@ -127,7 +183,11 @@ export default function MembersPage() {
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         title="メンバーを招待"
-        description="デモモードでは即時追加されます（本番では招待メールを送信）"
+        description={
+          isDemo
+            ? "デモモードでは即時追加されます"
+            : "招待メールの送信機能は準備中です"
+        }
         footer={
           <>
             <Button variant="secondary" onClick={() => setInviteOpen(false)}>

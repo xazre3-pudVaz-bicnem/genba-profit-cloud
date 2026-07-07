@@ -17,10 +17,14 @@ import {
   exportDataJSON,
   resetDemoData,
   updateCompany,
+  uploadCompanyLogo,
   useDB,
   useSession,
 } from "@/lib/app/data-store";
+import { canManageCompany } from "@/lib/app/permissions";
 import { isSupabaseConfigured } from "@/lib/app/supabase";
+import { LOGO_ACCEPT, validateLogoFile } from "@/lib/app/upload";
+import { useCompanyLogoUrl } from "@/components/app/print-doc";
 import type { Company } from "@/lib/app/types";
 
 function StatusDot({ ok }: { ok: boolean }) {
@@ -35,10 +39,13 @@ export default function SettingsPage() {
   const db = useDB();
   const session = useSession();
   const isDemo = session?.mode !== "supabase";
+  const editable = canManageCompany(session?.role);
   const [form, setForm] = useState<Company | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [ocrProvider, setOcrProvider] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const logoPreview = useCompanyLogoUrl(form?.logoUrl ?? null);
 
   useEffect(() => {
     if (db.hydrated && !form) setForm(db.company);
@@ -62,13 +69,34 @@ export default function SettingsPage() {
     toast({ title: "会社設定を保存しました", description: "帳票（見積書・請求書）に反映されます" });
   };
 
-  const onLogoChange = (file: File | undefined | null) => {
+  const onLogoChange = async (file: File | undefined | null) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      set("logoUrl", reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const invalid = validateLogoFile(file);
+    if (invalid) {
+      toast({ title: invalid, variant: "error" });
+      return;
+    }
+    if (isDemo) {
+      // デモモードはブラウザ内（dataURL）に保存
+      const reader = new FileReader();
+      reader.onload = () => set("logoUrl", reader.result as string);
+      reader.readAsDataURL(file);
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      const url = await uploadCompanyLogo(file);
+      set("logoUrl", url);
+      toast({ title: "ロゴをアップロードしました", description: "「保存する」で確定します" });
+    } catch (err) {
+      toast({
+        title: "ロゴのアップロードに失敗しました",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   const exportData = () => {
@@ -87,13 +115,19 @@ export default function SettingsPage() {
       <AppPageHeader
         title="会社設定"
         description="会社情報・振込先は見積書・請求書に反映されます"
-        actions={<Button onClick={save}>保存する</Button>}
+        actions={editable ? <Button onClick={save}>保存する</Button> : undefined}
       />
+
+      {!editable ? (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700">
+          会社設定の編集はオーナー・管理者のみ可能です（閲覧のみ）
+        </div>
+      ) : null}
 
       <div className="space-y-3">
         <Card>
           <CardHeader title="会社情報" description="帳票の発行元として表示されます" />
-          <div className="grid gap-4 px-5 pb-5 pt-2 sm:grid-cols-2">
+          <fieldset disabled={!editable} className="grid gap-4 px-5 pb-5 pt-2 sm:grid-cols-2">
             <Field label="会社名" className="sm:col-span-2">
               <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="例：株式会社〇〇工務店" />
             </Field>
@@ -118,9 +152,9 @@ export default function SettingsPage() {
             </Field>
             <Field label="会社ロゴ（帳票に表示）" className="sm:col-span-2">
               <div className="flex items-center gap-3">
-                {form.logoUrl ? (
+                {logoPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={form.logoUrl} alt="ロゴ" className="h-10 w-auto rounded border border-neutral-200 bg-white object-contain px-2" />
+                  <img src={logoPreview} alt="ロゴ" className="h-10 w-auto rounded border border-neutral-200 bg-white object-contain px-2" />
                 ) : (
                   <span className="flex h-10 w-24 items-center justify-center rounded border border-dashed border-neutral-200 text-[10px] text-neutral-400">
                     未設定
@@ -129,13 +163,18 @@ export default function SettingsPage() {
                 <input
                   ref={logoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={LOGO_ACCEPT}
                   className="hidden"
                   onChange={(e) => onLogoChange(e.target.files?.[0])}
                 />
-                <Button variant="secondary" size="sm" onClick={() => logoInputRef.current?.click()}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoUploading}
+                >
                   <Upload className="h-3.5 w-3.5" />
-                  画像を選択
+                  {logoUploading ? "アップロード中…" : "画像を選択"}
                 </Button>
                 {form.logoUrl ? (
                   <Button variant="ghost" size="sm" onClick={() => set("logoUrl", null)}>
@@ -143,13 +182,16 @@ export default function SettingsPage() {
                   </Button>
                 ) : null}
               </div>
+              <p className="mt-1.5 text-[10px] text-neutral-400">
+                jpg / png / webp / svg・5MBまで。選択後「保存する」で確定します
+              </p>
             </Field>
-          </div>
+          </fieldset>
         </Card>
 
         <Card>
           <CardHeader title="振込先口座" description="請求書の「お振込先」欄に表示されます" />
-          <div className="grid gap-4 px-5 pb-5 pt-2 sm:grid-cols-2">
+          <fieldset disabled={!editable} className="grid gap-4 px-5 pb-5 pt-2 sm:grid-cols-2">
             <Field label="銀行名">
               <Input value={form.bankName} onChange={(e) => set("bankName", e.target.value)} placeholder="三井住友銀行" />
             </Field>
@@ -168,7 +210,7 @@ export default function SettingsPage() {
             <Field label="口座名義（カナ）" className="sm:col-span-2">
               <Input value={form.bankAccountHolder} onChange={(e) => set("bankAccountHolder", e.target.value)} placeholder="カ）〇〇コウムテン" />
             </Field>
-          </div>
+          </fieldset>
         </Card>
 
         <Card>
@@ -234,9 +276,11 @@ export default function SettingsPage() {
                 デモデータをリセット
               </Button>
             ) : null}
-            <Link href="/app/settings/members" className="ml-auto">
-              <Button variant="ghost">メンバー管理へ</Button>
-            </Link>
+            {editable ? (
+              <Link href="/app/settings/members" className="ml-auto">
+                <Button variant="ghost">メンバー管理へ</Button>
+              </Link>
+            ) : null}
           </div>
         </Card>
       </div>

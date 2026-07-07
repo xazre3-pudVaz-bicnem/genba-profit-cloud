@@ -1,11 +1,35 @@
+"use client";
+
 /* eslint-disable @next/next/no-img-element */
+import { useEffect, useState } from "react";
+import { getDocumentSignedUrl } from "@/lib/app/data-store";
 import { longDate, yen } from "@/lib/shared/format";
 import type { Company, LineItem } from "@/lib/app/types";
 
 // ============================================================
 // A4帳票（見積書・請求書・領収書）
 // 画面ではプレビュー、印刷時は .print-area のみが出力される
+// 会社ロゴはURL/dataURLはそのまま、Storageパスは署名URLへ解決する
 // ============================================================
+
+export function useCompanyLogoUrl(logoUrl: string | null): string | null {
+  const direct = logoUrl && /^(https?:|data:|blob:)/.test(logoUrl) ? logoUrl : null;
+  const [resolved, setResolved] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (logoUrl && !direct) {
+      void getDocumentSignedUrl(logoUrl).then((url) => {
+        if (alive) setResolved(url);
+      });
+    } else {
+      setResolved(null);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [logoUrl, direct]);
+  return direct ?? resolved;
+}
 
 export interface PrintDocData {
   number: string;
@@ -51,6 +75,7 @@ const KIND_META = {
 export function PrintDoc({ kind, data, company }: PrintDocProps) {
   const meta = KIND_META[kind];
   const emptyRows = Math.max(0, 8 - data.items.length);
+  const logoSrc = useCompanyLogoUrl(company.logoUrl);
 
   return (
     <div className="print-area mx-auto w-full max-w-[820px] rounded-2xl border border-neutral-200 bg-white p-7 shadow-card sm:p-12">
@@ -104,17 +129,19 @@ export function PrintDoc({ kind, data, company }: PrintDocProps) {
         </div>
 
         <div className="relative text-[11px] leading-5 text-neutral-700">
-          {company.logoUrl ? (
-            <img src={company.logoUrl} alt="" className="mb-1.5 h-9 w-auto object-contain" />
+          {logoSrc ? (
+            <img src={logoSrc} alt="" className="mb-1.5 h-9 w-auto object-contain" />
           ) : null}
           <p className="text-sm font-bold text-neutral-900">{company.name || "会社名未設定"}</p>
           {company.postalCode ? <p>〒{company.postalCode}</p> : null}
-          {company.address ? <p>{company.address}</p> : null}
+          <p className={company.address ? "" : "text-neutral-400"}>
+            {company.address || "住所未設定"}
+          </p>
           {company.phone ? <p>TEL: {company.phone}</p> : null}
           {company.email ? <p>{company.email}</p> : null}
-          {company.invoiceRegistrationNumber ? (
-            <p className="tnum">登録番号: {company.invoiceRegistrationNumber}</p>
-          ) : null}
+          <p className={company.invoiceRegistrationNumber ? "tnum" : "text-neutral-400"}>
+            登録番号: {company.invoiceRegistrationNumber || "未設定"}
+          </p>
           {/* 社印スペース */}
           <span className="absolute -right-2 top-8 flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-red-300 text-[9px] text-red-300">
             社印

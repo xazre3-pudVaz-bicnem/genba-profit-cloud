@@ -34,6 +34,7 @@ import type {
 import { getSupabase, isSupabaseConfigured } from "./supabase";
 import { safeStorageFileName, validateDocumentFile } from "./upload";
 import type {
+  Company,
   Confidence,
   Cost,
   CostStatus,
@@ -47,12 +48,14 @@ import type {
   Invoice,
   InvoiceStatus,
   LineItem,
+  Member,
   OcrResult,
   PaymentMethod,
   Project,
   ProjectStatus,
   Revenue,
   RevenueStatus,
+  Role,
   TaxType,
 } from "./types";
 
@@ -85,11 +88,22 @@ function notifySyncError(action: string, err: unknown) {
 }
 
 // ------------------------------------------------------------
-// 会社ID（RLSスコープ）。プロフィール未作成なら自己修復で作成する
+// 会社ID・自分のプロフィール（RLSスコープ）。
+// プロフィール未作成なら自己修復で作成する。
+// 単一フライト（provisioning）で多重実行・重複会社作成を防ぐ。
 // ------------------------------------------------------------
+
+export interface CurrentProfile {
+  id: string;
+  companyId: string;
+  name: string;
+  email: string;
+  role: Role;
+}
 
 let companyId: string | null = null;
 let userId: string | null = null;
+let currentProfile: CurrentProfile | null = null;
 let provisioning: Promise<string | null> | null = null;
 
 async function ensureCompanyId(): Promise<string | null> {
@@ -106,12 +120,19 @@ async function ensureCompanyId(): Promise<string | null> {
 
     const { data: profile, error } = await sb
       .from("profiles")
-      .select("company_id")
+      .select("company_id,name,email,role")
       .eq("id", user.id)
       .maybeSingle();
     if (error) throw error;
     if (profile?.company_id) {
       companyId = profile.company_id as string;
+      currentProfile = {
+        id: user.id,
+        companyId,
+        name: (profile.name as string) ?? "",
+        email: (profile.email as string) ?? "",
+        role: (profile.role as Role) ?? "staff",
+      };
       return companyId;
     }
 
@@ -120,6 +141,7 @@ async function ensureCompanyId(): Promise<string | null> {
     // current_company_id() がnullでSELECTポリシーに弾かれるため、
     // IDをクライアント側で生成し、返却なしのINSERTで登録する。
     const companyName = (user.user_metadata?.company_name as string) || "マイ会社";
+    const name = (user.user_metadata?.name as string) || user.email || "ユーザー";
     const newCompanyId = uid();
     const { error: companyError } = await sb
       .from("companies")
@@ -129,19 +151,50 @@ async function ensureCompanyId(): Promise<string | null> {
     const { error: profileError } = await sb.from("profiles").insert({
       id: user.id,
       company_id: newCompanyId,
-      name: (user.user_metadata?.name as string) || user.email || "ユーザー",
+      name,
       email: user.email ?? "",
       role: "owner",
     });
     if (profileError) throw profileError;
 
     companyId = newCompanyId;
+    currentProfile = {
+      id: user.id,
+      companyId: newCompanyId,
+      name,
+      email: user.email ?? "",
+      role: "owner",
+    };
     return companyId;
   })().finally(() => {
     provisioning = null;
   });
 
   return provisioning;
+}
+
+// ------------------------------------------------------------
+// 共通アクセサ（複数画面でバラバラに取得処理を書かないための入口）
+// ------------------------------------------------------------
+
+/** ログインユーザーのプロフィール（hydrate/初回アクセス後に利用可能） */
+export function getCurrentProfile(): CurrentProfile | null {
+  return currentProfile;
+}
+
+/** ログインユーザーのロール（未取得時null。デモはセッションのroleを参照） */
+export function getCurrentUserRole(): Role | null {
+  return currentProfile?.role ?? null;
+}
+
+/** ログインユーザーの会社ID（未プロビジョニングなら自動作成して返す） */
+export async function getCurrentCompanyId(): Promise<string | null> {
+  return ensureCompanyId();
+}
+
+/** 会社情報（ローカルキャッシュ経由。hydrate後はSupabaseの実データ） */
+export function getCurrentCompany(): Company {
+  return local.getDB().company;
 }
 
 // ------------------------------------------------------------
@@ -679,6 +732,84 @@ function invoicePatchToRow(patch: Partial<InvoiceInput>): Record<string, unknown
   return row;
 }
 
+// ---------- 会社・メンバー ----------
+
+interface CompanyRow {
+  id: string;
+  name: string;
+  postal_code: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  invoice_registration_number: string | null;
+  bank_name: string | null;
+  bank_branch: string | null;
+  bank_account_type: string | null;
+  bank_account_number: string | null;
+  bank_account_holder: string | null;
+  logo_url: string | null;
+}
+
+function rowToCompany(row: CompanyRow): Company {
+  return {
+    id: row.id,
+    name: row.name ?? "",
+    postalCode: row.postal_code ?? "",
+    address: row.address ?? "",
+    phone: row.phone ?? "",
+    email: row.email ?? "",
+    invoiceRegistrationNumber: row.invoice_registration_number ?? "",
+    bankName: row.bank_name ?? "",
+    bankBranch: row.bank_branch ?? "",
+    bankAccountType: row.bank_account_type ?? "普通",
+    bankAccountNumber: row.bank_account_number ?? "",
+    bankAccountHolder: row.bank_account_holder ?? "",
+    logoUrl: row.logo_url,
+  };
+}
+
+function companyPatchToRow(patch: Partial<Company>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.postalCode !== undefined) row.postal_code = patch.postalCode;
+  if (patch.address !== undefined) row.address = patch.address;
+  if (patch.phone !== undefined) row.phone = patch.phone;
+  if (patch.email !== undefined) row.email = patch.email;
+  if (patch.invoiceRegistrationNumber !== undefined) {
+    row.invoice_registration_number = patch.invoiceRegistrationNumber;
+  }
+  if (patch.bankName !== undefined) row.bank_name = patch.bankName;
+  if (patch.bankBranch !== undefined) row.bank_branch = patch.bankBranch;
+  if (patch.bankAccountType !== undefined) row.bank_account_type = patch.bankAccountType;
+  if (patch.bankAccountNumber !== undefined) row.bank_account_number = patch.bankAccountNumber;
+  if (patch.bankAccountHolder !== undefined) row.bank_account_holder = patch.bankAccountHolder;
+  if (patch.logoUrl !== undefined) {
+    // dataURL（デモ用のインライン画像）はDBへ保存しない。Storageパス/URLのみ
+    row.logo_url = patch.logoUrl && !patch.logoUrl.startsWith("data:") ? patch.logoUrl : null;
+  }
+  return row;
+}
+
+interface ProfileRow {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToMember(row: ProfileRow): Member {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 // ------------------------------------------------------------
 // 取得（一覧・詳細・ダッシュボードはローカルキャッシュ経由で参照される）
 // ------------------------------------------------------------
@@ -761,6 +892,33 @@ async function refetchInvoices(): Promise<void> {
   local.replaceInvoices((data as unknown as InvoiceRow[]).map(rowToInvoice));
 }
 
+async function refetchCompany(): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  // RLSにより自社の行しか返らない
+  const { data, error } = await sb
+    .from("companies")
+    .select(
+      "id,name,postal_code,address,phone,email,invoice_registration_number,bank_name,bank_branch,bank_account_type,bank_account_number,bank_account_holder,logo_url"
+    )
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (data) local.replaceCompany(rowToCompany(data as CompanyRow));
+}
+
+async function refetchMembers(): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  // RLSにより同じ会社のプロフィールのみ返る
+  const { data, error } = await sb
+    .from("profiles")
+    .select("id,name,email,role,created_at,updated_at")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  local.replaceMembers((data as ProfileRow[]).map(rowToMember));
+}
+
 let hydrating = false;
 
 /**
@@ -774,6 +932,11 @@ export async function hydrateFromSupabase(): Promise<void> {
   hydrating = true;
   try {
     await ensureCompanyId();
+    // 実ロールをセッションへ反映（サインアップ時は暫定でownerが入っている）
+    const session = local.getSession();
+    if (session && currentProfile && session.role !== currentProfile.role) {
+      local.setSession({ ...session, role: currentProfile.role });
+    }
     await Promise.all([
       refetchProjects(),
       refetchRevenues(),
@@ -781,6 +944,8 @@ export async function hydrateFromSupabase(): Promise<void> {
       refetchDocuments(),
       refetchEstimates(),
       refetchInvoices(),
+      refetchCompany(),
+      refetchMembers(),
     ]);
   } catch (err) {
     notifySyncError("データの取得", err);
@@ -1214,4 +1379,114 @@ export function spRemoveInvoice(id: string): void {
     },
     refetchInvoices
   );
+}
+
+// ---------- 会社・メンバー ----------
+
+export function spUpdateCompany(patch: Partial<Company>): void {
+  local.updateCompany(patch);
+  syncInBackground(
+    "会社設定の保存",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      const company = await requireCompanyId();
+      const row = companyPatchToRow(patch);
+      if (Object.keys(row).length === 0) return;
+      const { error } = await sb.from("companies").update(row).eq("id", company);
+      if (error) throw error;
+    },
+    refetchCompany
+  );
+}
+
+export function spUpdateMember(id: string, patch: Partial<Omit<Member, "id" | "createdAt">>): void {
+  local.updateMember(id, patch);
+  syncInBackground(
+    "メンバーの更新",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const row: Record<string, unknown> = {};
+      if (patch.name !== undefined) row.name = patch.name;
+      if (patch.role !== undefined) row.role = patch.role;
+      if (Object.keys(row).length === 0) return;
+      const { error } = await sb.from("profiles").update(row).eq("id", id);
+      if (error) throw error;
+    },
+    refetchMembers
+  );
+}
+
+export function spRemoveMember(id: string): void {
+  local.removeMember(id);
+  syncInBackground(
+    "メンバーの削除",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      // 案件の担当者はFK（on delete set null）で自動的に未設定になる
+      const { error } = await sb.from("profiles").delete().eq("id", id);
+      if (error) throw error;
+    },
+    async () => {
+      await refetchMembers();
+      await refetchProjects();
+    }
+  );
+}
+
+// ---------- 会社ロゴ（Storage） ----------
+
+const COMPANY_ASSETS_BUCKET = "company-assets";
+
+function isBucketMissing(message: string): boolean {
+  return /bucket not found|not found/i.test(message);
+}
+
+/**
+ * 会社ロゴをStorageへアップロードし、表示用の値を返す。
+ * 1. company-assets バケット（公開・supabase/storage-company-assets.sql で作成）→ 公開URL
+ * 2. バケット未作成なら documents バケットへフォールバック → パス（署名URLで表示）
+ * どちらも失敗した場合は日本語メッセージのErrorを投げる。
+ */
+export async function spUploadCompanyLogo(file: File): Promise<string> {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabaseが未設定です");
+  const company = await ensureCompanyId();
+  if (!company) throw new Error("会社情報を取得できませんでした（再ログインをお試しください）");
+
+  const path = `${company}/logo/${Date.now()}-${safeStorageFileName(file.name, file.type)}`;
+
+  const { error: assetsError } = await sb.storage.from(COMPANY_ASSETS_BUCKET).upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (!assetsError) {
+    const { data } = sb.storage.from(COMPANY_ASSETS_BUCKET).getPublicUrl(path);
+    if (data.publicUrl) return data.publicUrl;
+  }
+
+  if (assetsError && !isBucketMissing(assetsError.message)) {
+    throw new Error(assetsError.message);
+  }
+
+  // company-assets 未作成の場合は documents バケット（非公開・署名URL表示）へ保存する
+  const { error: docsError } = await sb.storage.from(DOCUMENTS_BUCKET).upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (docsError) {
+    throw new Error(
+      `Storageバケットを作成してください（company-assets）。詳細: ${docsError.message}`
+    );
+  }
+  toast({
+    title: "ロゴを保存しました（documentsバケット）",
+    description:
+      "supabase/storage-company-assets.sql で company-assets バケットを作成すると公開URLで配信されます",
+  });
+  return path;
 }

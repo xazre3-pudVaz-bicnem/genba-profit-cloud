@@ -76,6 +76,8 @@ export interface Member {
   email: string;
   role: Role;
   createdAt: string;
+  /** 最終更新日（Supabase接続時のみ。デモデータは未設定） */
+  updatedAt?: string;
 }
 
 export interface Project {

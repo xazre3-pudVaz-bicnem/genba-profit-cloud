@@ -233,12 +233,21 @@ Storageは `{company_id}/...` パスで分離。
 
 ## Supabase移行状況
 
-- **[済] projects / revenues / costs / documents / estimates / invoices** —
+- **[済] 全エンティティ移行完了** — projects / revenues / costs / documents /
+  estimates / invoices / **company（会社設定）** / **members（profiles）** の
   一覧取得・作成・編集・削除がDB保存（`lib/app/supabase-store.ts`）。
   ローカルキャッシュへ楽観反映→バックグラウンドでwrite-through同期（直列キューで実行順を保証）。
   失敗時はトースト+該当エンティティのDB再取得でUIを戻す。
   案件詳細・案件一覧・ダッシュボードの収支は `lib/app/calc.ts` がこのキャッシュから自動計算するため、
   すべてSupabase上の実データ連動になる。
+- **会社設定・メンバー** — 会社情報（帳票の発行元・振込先・インボイス番号・ロゴ）は
+  companies テーブルへ、メンバーは profiles テーブルをそのまま利用。
+  ロゴは `company-assets` バケット（`supabase/storage-company-assets.sql` で作成・公開URL配信）へ保存。
+  バケット未作成でも documents バケットへ自動フォールバックし署名URLで表示される。
+  共通アクセサは `getCurrentProfile / getCurrentUserRole / getCurrentCompanyId / getCurrentCompany`
+  （プロビジョニングは単一フライトで重複会社作成を防止）。
+  権限制御は `lib/app/permissions.ts`（owner/admin=会社設定・メンバー管理、staff=データ編集のみ、
+  viewer=閲覧のみ。サーバー側はRLSが最終防衛線）。メンバー招待メールは準備中（UIで案内）。
 - **見積・請求の明細** — `estimate_items` / `invoice_items` を親と同期
   （作成時insert・編集時は全置換・親削除時はFK cascade。取得は明細埋め込みSELECT + sort_order順）。
   税率は `lib/shared/format.ts` の `TAX_RATE` / `taxFromSubtotal` に集約（変更はここ1か所）。

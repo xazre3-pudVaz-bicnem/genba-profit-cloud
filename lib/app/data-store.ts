@@ -15,12 +15,11 @@
 //   ※ /app?demo=true はデモセッションになるため常に demoStore
 //
 // 移行状況:
-//   [済] projects / revenues / costs / documents / estimates / invoices
-//        （一覧取得・作成・編集・削除。見積・請求は明細テーブルも同期）
-//        書類ファイルは Storage documents バケット + 署名URLプレビュー
-//   [未] members / company
-//        → lib/app/supabase-store.ts に sp〇〇 を追加し、下の supabaseStore に
-//          割り当てるだけで順次移行できる
+//   [済] 全エンティティ移行済み
+//        projects / revenues / costs / documents / estimates / invoices /
+//        company（会社設定） / members（profiles）
+//        見積・請求は明細テーブルも同期。書類ファイル・会社ロゴはStorage保存
+//   [注] members の「招待」のみ準備中（本番はUI上で案内のみ。デモは即時追加）
 // ============================================================
 
 import * as demo from "./store";
@@ -35,14 +34,18 @@ import {
   spRemoveDocument,
   spRemoveEstimate,
   spRemoveInvoice,
+  spRemoveMember,
   spRemoveProject,
   spRemoveRevenue,
+  spUpdateCompany,
   spUpdateCost,
   spUpdateDocument,
   spUpdateEstimate,
   spUpdateInvoice,
+  spUpdateMember,
   spUpdateProject,
   spUpdateRevenue,
+  spUploadCompanyLogo,
   spUploadDocumentFile,
 } from "./supabase-store";
 import { isSupabaseConfigured } from "./supabase";
@@ -148,6 +151,10 @@ export const supabaseStore: DataStore = {
   addInvoice: spAddInvoice,
   updateInvoice: spUpdateInvoice,
   removeInvoice: spRemoveInvoice,
+  updateCompany: spUpdateCompany,
+  // addMember はデモ専用（本番の招待は準備中。UI側で案内を表示する）
+  updateMember: spUpdateMember,
+  removeMember: spRemoveMember,
 };
 
 /**
@@ -176,6 +183,18 @@ export async function uploadDocumentFile(
 ): Promise<string | null> {
   if (isSupabaseMode()) {
     return spUploadDocumentFile(file, projectId);
+  }
+  return null;
+}
+
+/**
+ * 会社ロゴの保存。
+ * 本番モード: Storageへアップロードして表示用URL/パスを返す（失敗時はthrow）。
+ * デモモード: null（呼び出し側でdataURLをローカル保存する）。
+ */
+export async function uploadCompanyLogo(file: File): Promise<string | null> {
+  if (isSupabaseMode()) {
+    return spUploadCompanyLogo(file);
   }
   return null;
 }
@@ -271,4 +290,11 @@ export {
   type EstimateInput,
   type InvoiceInput,
 } from "./store";
-export { hydrateFromSupabase, getDocumentSignedUrl } from "./supabase-store";
+export {
+  hydrateFromSupabase,
+  getDocumentSignedUrl,
+  getCurrentProfile,
+  getCurrentUserRole,
+  getCurrentCompanyId,
+  getCurrentCompany,
+} from "./supabase-store";

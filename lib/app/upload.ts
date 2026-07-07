@@ -40,6 +40,7 @@ export function safeStorageFileName(name: string, mimeType: string): string {
     "image/jpeg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
+    "image/svg+xml": "svg",
     "application/pdf": "pdf",
   };
   const ext = fileExtension(name) || extFromMime[mimeType] || "jpg";
@@ -49,4 +50,27 @@ export function safeStorageFileName(name: string, mimeType: string): string {
     .replace(/_+/g, "_")
     .slice(0, 40);
   return `${base || "document"}.${ext}`;
+}
+
+// ------------------------------------------------------------
+// 会社ロゴ（jpg / jpeg / png / webp / svg、上限 5MB）
+// ------------------------------------------------------------
+
+export const LOGO_MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+export const LOGO_ACCEPT = "image/jpeg,image/png,image/webp,image/svg+xml";
+
+const LOGO_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
+const LOGO_EXT = new Set(["jpg", "jpeg", "png", "webp", "svg"]);
+
+/** ロゴファイルを検証し、問題があれば日本語のエラーメッセージを返す */
+export function validateLogoFile(file: File): string | null {
+  const okType = LOGO_MIME.has(file.type) || LOGO_EXT.has(fileExtension(file.name));
+  if (!okType) {
+    return "対応していないファイル形式です（jpg / jpeg / png / webp / svg）";
+  }
+  if (file.size > LOGO_MAX_FILE_SIZE) {
+    return "ファイルサイズが大きすぎます（5MBまで）";
+  }
+  return null;
 }

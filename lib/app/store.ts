@@ -138,6 +138,18 @@ export function replaceInvoices(invoices: Invoice[]) {
   commit({ ...cur, invoices });
 }
 
+/** Supabaseから取得した会社情報でローカルキャッシュを置き換える（本番モード用） */
+export function replaceCompany(company: Company) {
+  const cur = getDB();
+  commit({ ...cur, company });
+}
+
+/** Supabaseから取得したメンバーでローカルキャッシュを置き換える（本番モード用） */
+export function replaceMembers(members: Member[]) {
+  const cur = getDB();
+  commit({ ...cur, members });
+}
+
 /** バックアップ用JSONエクスポート */
 export function exportDataJSON(): string {
   const { hydrated: _hydrated, ...rest } = getDB();
