@@ -15,7 +15,7 @@ import { MockDashboard } from "@/components/marketing/mocks";
 import { Reveal } from "@/components/marketing/reveal";
 import { Button } from "@/components/shared/button";
 import { APP_NAME } from "@/lib/shared/config";
-import { appAuthUrl, appDemoUrl } from "@/lib/shared/urls";
+import { demoUrl, signupUrl } from "@/lib/urls";
 
 export const metadata: Metadata = {
   title: "デモを試す",
@@ -47,13 +47,13 @@ export default function DemoPage() {
               まずは触って、現場の収支が「見える」感覚を確かめてください。
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link href={appDemoUrl()}>
+              <Link href={demoUrl()}>
                 <Button size="lg" className="shadow-lg shadow-brand-600/25">
                   <MonitorPlay className="h-5 w-5" />
                   デモ管理画面を開く
                 </Button>
               </Link>
-              <Link href={appAuthUrl("/signup")}>
+              <Link href={signupUrl()}>
                 <Button size="lg" variant="secondary">
                   無料で始める
                   <ArrowRight className="h-4 w-4" />
@@ -122,13 +122,13 @@ export default function DemoPage() {
             </div>
           </Reveal>
           <Reveal delay={0.1} className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href={appDemoUrl()}>
+            <Link href={demoUrl()}>
               <Button size="lg">
                 <MonitorPlay className="h-5 w-5" />
                 デモ管理画面を開く
               </Button>
             </Link>
-            <Link href={appAuthUrl("/signup")}>
+            <Link href={signupUrl()}>
               <Button size="lg" variant="secondary">
                 無料で始める
               </Button>

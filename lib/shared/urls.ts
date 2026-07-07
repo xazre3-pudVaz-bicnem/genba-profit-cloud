@@ -60,3 +60,48 @@ export function marketingUrl(path = "/"): string {
   const base = process.env.NEXT_PUBLIC_MARKETING_URL ?? "";
   return `${base.replace(/\/$/, "")}${path}` || "/";
 }
+
+// ------------------------------------------------------------
+// 用途別の named ヘルパー（CTA・フッター・法務ページはこちらを使う）
+// エントリポイントは lib/urls.ts
+// ------------------------------------------------------------
+
+/** ログイン画面 */
+export function loginUrl(): string {
+  return appAuthUrl("/login");
+}
+
+/** 新規登録（planを渡すと /signup?plan=xxx で引き継ぐ） */
+export function signupUrl(plan?: string): string {
+  return appAuthUrl(plan ? `/signup?plan=${plan}` : "/signup");
+}
+
+/** デモ管理画面（ログイン不要） */
+export function demoUrl(): string {
+  return appDemoUrl();
+}
+
+/** ログイン後の管理画面（ダッシュボード） */
+export function appDashboardUrl(): string {
+  return appUrl();
+}
+
+/** LP: 料金ページ */
+export function pricingUrl(): string {
+  return marketingUrl("/pricing");
+}
+
+/** LP: 利用規約 */
+export function termsUrl(): string {
+  return marketingUrl("/terms");
+}
+
+/** LP: プライバシーポリシー */
+export function privacyUrl(): string {
+  return marketingUrl("/privacy");
+}
+
+/** LP: 特定商取引法に基づく表記 */
+export function commercialLawUrl(): string {
+  return marketingUrl("/commercial-law");
+}

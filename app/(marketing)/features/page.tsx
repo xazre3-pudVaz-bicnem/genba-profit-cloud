@@ -19,7 +19,7 @@ import { MockBoard, MockDashboard, MockOcr } from "@/components/marketing/mocks"
 import { Reveal } from "@/components/marketing/reveal";
 import { Button } from "@/components/shared/button";
 import { APP_NAME } from "@/lib/shared/config";
-import { appAuthUrl, appDemoUrl } from "@/lib/shared/urls";
+import { demoUrl, signupUrl } from "@/lib/urls";
 
 export const metadata: Metadata = {
   title: "機能一覧",
@@ -161,10 +161,10 @@ export default function FeaturesPage() {
             ))}
           </div>
           <Reveal className="mt-12 flex flex-wrap items-center justify-center gap-3">
-            <Link href={appDemoUrl()}>
+            <Link href={demoUrl()}>
               <Button size="lg">デモで操作感を確認する</Button>
             </Link>
-            <Link href={appAuthUrl("/signup")}>
+            <Link href={signupUrl()}>
               <Button size="lg" variant="secondary">
                 無料で試す
                 <ArrowRight className="h-4 w-4" />

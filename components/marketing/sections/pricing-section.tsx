@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Reveal } from "@/components/marketing/reveal";
 import { Button } from "@/components/shared/button";
 import { PLANS } from "@/lib/marketing/content";
-import { appAuthUrl } from "@/lib/shared/urls";
+import { signupUrl } from "@/lib/urls";
 import { cn } from "@/lib/shared/utils";
 
 /** 料金プラン（LP用） */
@@ -52,7 +52,7 @@ export function PricingSection() {
                     </li>
                   ))}
                 </ul>
-                <Link href={appAuthUrl("/signup")} className="mt-6">
+                <Link href={signupUrl()} className="mt-6">
                   <Button className="w-full" variant={plan.highlighted ? "primary" : "secondary"}>
                     無料で試す
                   </Button>

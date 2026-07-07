@@ -8,7 +8,7 @@ import { Button } from "@/components/shared/button";
 import { appPath } from "@/lib/app/routes";
 import { setSession, useDB, useSession } from "@/lib/app/data-store";
 import { getSupabase } from "@/lib/app/supabase";
-import { appAuthUrl, marketingUrl } from "@/lib/shared/urls";
+import { marketingUrl, signupUrl } from "@/lib/urls";
 
 async function signOutEverywhere() {
   const supabase = getSupabase();
@@ -47,7 +47,7 @@ export function AppHeader() {
             <span className="hidden rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-[10px] font-bold text-brand-700 sm:inline-block">
               デモモード
             </span>
-            <Link href={appAuthUrl("/signup")}>
+            <Link href={signupUrl()}>
               <Button variant="secondary" size="sm" className="text-xs">
                 本番利用を開始する
               </Button>

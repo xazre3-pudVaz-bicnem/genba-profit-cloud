@@ -110,26 +110,46 @@ lib/
 
 ## 将来のドメイン分離方針（重要）
 
-現在は**単一Next.jsプロジェクト内でLPとアプリをルーティング分離**していますが、
-将来的に**別Vercelプロジェクト・別ドメイン**へ分離する前提の設計です。
+現在は**単一VercelプロジェクトでLPとアプリを同居**（ルーティング・レイアウト・コンポーネントは分離済み）。
+将来的に**別ドメイン**で運用する前提の設計です。**Stripe課金を有効化する前にドメインを確定させること**
+（Checkout/Webhook のcallback URLがドメインに依存し、後から変えると再設定になるため）。
 
 | | 想定ドメイン | SEO |
 |---|---|---|
-| LP | `https://genba-profit-cloud.jp` | **対象**（index許可・OGP・構造化データ） |
+| LP | `https://genba-profit-cloud.jp` | **対象**（index許可・OGP・sitemap掲載） |
 | アプリ | `https://app.genba-profit-cloud.jp` | **対象外**（noindex。`robots.ts` でも `/app` をdisallow） |
+
+具体的な移行手順は **[docs/domain-checklist.md](docs/domain-checklist.md)** を参照。
 
 ### URLはハードコードしない
 
-LP→アプリのCTAリンクはすべて `lib/shared/urls.ts` のヘルパー経由です。
+CTA・ヘッダー・フッター・法務ページのURLはすべて **`lib/urls.ts`** のヘルパー経由です
+（`marketingUrl / appUrl / loginUrl / signupUrl(plan?) / demoUrl / appDashboardUrl /
+pricingUrl / termsUrl / privacyUrl / commercialLawUrl / contactEmail`）。
 
-```
-NEXT_PUBLIC_MARKETING_URL   # LP側URL（例: https://genba-profit-cloud.jp）
-NEXT_PUBLIC_APP_URL         # アプリ側URL（例: https://app.genba-profit-cloud.jp）
+```bash
+# 現在のVercel運用
+NEXT_PUBLIC_MARKETING_URL=https://genba-profit-cloud.vercel.app
+NEXT_PUBLIC_APP_URL=https://genba-profit-cloud.vercel.app/app
+
+# 将来の本番ドメイン運用（この2行を変えて再デプロイするだけ）
+NEXT_PUBLIC_MARKETING_URL=https://genba-profit-cloud.jp
+NEXT_PUBLIC_APP_URL=https://app.genba-profit-cloud.jp
 ```
 
-- 未設定（現在）: `appUrl()` → `/app`、`appAuthUrl("/login")` → `/login`
-- 分離後: 環境変数を設定するだけで、無料で試す／ログイン／デモの全CTAが別ドメインへ切り替わる
-- 認証（/login /signup）は**アプリ側ドメインに属する**想定（`appAuthUrl` が吸収）
+- 切り替えると、無料で試す／ログイン／デモ／sitemap／OGP／canonicalの全URLが自動で追従する
+- 認証（/login /signup）は**アプリ側ドメインに属する**（`loginUrl()` / `signupUrl()` が吸収）
+- ログイン成功後の遷移は同一プロジェクト内の相対パス（`appPath()` = `/app`）のため、
+  どちらのドメイン構成でもそのまま動く
+
+### middleware.ts によるドメイン振り分け
+
+`NEXT_PUBLIC_MARKETING_URL` と `NEXT_PUBLIC_APP_URL` の**ホストが異なるときだけ**動作:
+
+- LPドメインで `/app` `/login` `/signup` → アプリドメインへ308リダイレクト
+- アプリドメインで `/features` `/pricing` `/terms` 等のLPページ → LPドメインへ308リダイレクト
+- アプリドメインの `/` → `/app`（未ログインならAppShellが `/login` へ）
+- **同一ホスト（現在のVercel）・環境変数未設定・localhostでは一切動作しない**（ループ防止）
 
 ### /app プレフィックスの外し方（分離後）
 

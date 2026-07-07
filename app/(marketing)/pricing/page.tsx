@@ -6,7 +6,7 @@ import { Reveal } from "@/components/marketing/reveal";
 import { Button } from "@/components/shared/button";
 import { FAQ_ITEMS, PLANS } from "@/lib/marketing/content";
 import { APP_NAME, CONTACT_EMAIL } from "@/lib/shared/config";
-import { appAuthUrl } from "@/lib/shared/urls";
+import { signupUrl } from "@/lib/urls";
 import { cn } from "@/lib/shared/utils";
 
 export const metadata: Metadata = {
@@ -75,7 +75,7 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href={appAuthUrl(`/signup?plan=${plan.id}`)} className="mt-6">
+                  <Link href={signupUrl(plan.id)} className="mt-6">
                     <Button className="w-full" variant={plan.highlighted ? "primary" : "secondary"}>
                       無料で試す
                     </Button>
@@ -148,7 +148,7 @@ export default function PricingPage() {
           </Reveal>
           <Reveal delay={0.15} className="mt-10">
             <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link href={appAuthUrl("/signup")}>
+              <Link href={signupUrl()}>
                 <Button size="lg">無料で試す</Button>
               </Link>
               <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`${APP_NAME} 導入相談`)}`}>

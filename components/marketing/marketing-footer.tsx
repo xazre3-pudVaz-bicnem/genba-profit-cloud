@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/shared/logo";
 import { APP_NAME, APP_TAGLINE } from "@/lib/shared/config";
-import { appAuthUrl } from "@/lib/shared/urls";
+import { loginUrl, signupUrl } from "@/lib/urls";
 
 /** LP専用フッター（アプリ側では使用しない） */
 export function MarketingFooter() {
@@ -17,8 +17,8 @@ export function MarketingFooter() {
     {
       title: "はじめる",
       items: [
-        { label: "無料で試す", href: appAuthUrl("/signup") },
-        { label: "ログイン", href: appAuthUrl("/login") },
+        { label: "無料で試す", href: signupUrl() },
+        { label: "ログイン", href: loginUrl() },
       ],
     },
     {

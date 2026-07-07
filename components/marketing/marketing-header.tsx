@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/shared/button";
-import { appAuthUrl } from "@/lib/shared/urls";
+import { loginUrl, signupUrl } from "@/lib/urls";
 
 const NAV = [
   { href: "/features", label: "機能" },
@@ -37,10 +37,10 @@ export function MarketingHeader() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Link href={appAuthUrl("/login")}>
+          <Link href={loginUrl()}>
             <Button variant="ghost">ログイン</Button>
           </Link>
-          <Link href={appAuthUrl("/signup")}>
+          <Link href={signupUrl()}>
             <Button>無料で試す</Button>
           </Link>
         </div>
@@ -70,12 +70,12 @@ export function MarketingHeader() {
             ))}
           </nav>
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-100 pt-3">
-            <Link href={appAuthUrl("/login")} onClick={() => setOpen(false)}>
+            <Link href={loginUrl()} onClick={() => setOpen(false)}>
               <Button variant="secondary" className="w-full">
                 ログイン
               </Button>
             </Link>
-            <Link href={appAuthUrl("/signup")} onClick={() => setOpen(false)}>
+            <Link href={signupUrl()} onClick={() => setOpen(false)}>
               <Button className="w-full">無料で試す</Button>
             </Link>
           </div>

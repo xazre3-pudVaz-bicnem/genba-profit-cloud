@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FloatingCards, MockDashboard } from "@/components/marketing/mocks";
 import { Reveal } from "@/components/marketing/reveal";
 import { Button } from "@/components/shared/button";
-import { appAuthUrl } from "@/lib/shared/urls";
+import { signupUrl } from "@/lib/urls";
 
 /** LPヒーロー */
 export function HeroSection() {
@@ -35,7 +35,7 @@ export function HeroSection() {
           </Reveal>
           <Reveal delay={0.24}>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Link href={appAuthUrl("/signup")}>
+              <Link href={signupUrl()}>
                 <Button size="lg" className="shadow-lg shadow-brand-600/25">
                   無料で試す
                   <ArrowRight className="h-4 w-4" />
@@ -47,7 +47,7 @@ export function HeroSection() {
                 </Button>
               </Link>
               <Link
-                href={appAuthUrl("/signup")}
+                href={signupUrl()}
                 className="text-sm font-medium text-neutral-500 underline-offset-4 hover:text-brand-600 hover:underline"
               >
                 資料請求

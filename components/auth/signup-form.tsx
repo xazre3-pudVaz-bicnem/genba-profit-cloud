@@ -17,7 +17,7 @@ import {
 } from "@/lib/app/data-store";
 import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
 import { getPlan } from "@/lib/billing/plans";
-import { appAuthUrl } from "@/lib/shared/urls";
+import { loginUrl } from "@/lib/urls";
 
 export function SignupForm() {
   const router = useRouter();
@@ -85,7 +85,7 @@ export function SignupForm() {
       <h1 className="text-xl font-bold text-neutral-900">無料で始める</h1>
       <p className="mt-1 text-xs text-neutral-500">
         すでにアカウントをお持ちの方は{" "}
-        <Link href={appAuthUrl("/login")} className="font-medium text-brand-600 hover:underline">
+        <Link href={loginUrl()} className="font-medium text-brand-600 hover:underline">
           ログイン
         </Link>
       </p>

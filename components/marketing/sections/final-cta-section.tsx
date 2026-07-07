@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Reveal } from "@/components/marketing/reveal";
 import { Button } from "@/components/shared/button";
-import { appAuthUrl, appDemoUrl } from "@/lib/shared/urls";
+import { demoUrl, signupUrl } from "@/lib/urls";
 
 /** 最終CTA */
 export function FinalCtaSection() {
@@ -19,12 +19,12 @@ export function FinalCtaSection() {
             まずはデモで操作感を確認してください。登録不要・1分で全機能を体験できます。
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href={appDemoUrl()}>
+            <Link href={demoUrl()}>
               <Button size="lg" variant="dark" className="bg-neutral-950 hover:bg-neutral-900">
                 まずはデモで操作感を確認
               </Button>
             </Link>
-            <Link href={appAuthUrl("/signup")}>
+            <Link href={signupUrl()}>
               <Button size="lg" variant="secondary">
                 無料で試す
               </Button>

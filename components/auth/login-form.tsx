@@ -11,7 +11,7 @@ import { toast } from "@/components/shared/toast";
 import { appPath } from "@/lib/app/routes";
 import { hydrateFromSupabase, setSession, startDemoSession } from "@/lib/app/data-store";
 import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
-import { appAuthUrl } from "@/lib/shared/urls";
+import { signupUrl } from "@/lib/urls";
 
 export function LoginForm() {
   const router = useRouter();
@@ -52,7 +52,7 @@ export function LoginForm() {
       <h1 className="text-xl font-bold text-neutral-900">ログイン</h1>
       <p className="mt-1 text-xs text-neutral-500">
         アカウントをお持ちでない方は{" "}
-        <Link href={appAuthUrl("/signup")} className="font-medium text-brand-600 hover:underline">
+        <Link href={signupUrl()} className="font-medium text-brand-600 hover:underline">
           新規登録
         </Link>
       </p>

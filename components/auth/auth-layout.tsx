@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/shared/logo";
 import { APP_NAME } from "@/lib/shared/config";
-import { marketingUrl } from "@/lib/shared/urls";
+import { marketingUrl } from "@/lib/urls";
 
 /**
  * 認証専用レイアウト（LPともアプリとも独立）。
