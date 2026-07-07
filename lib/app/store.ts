@@ -120,6 +120,12 @@ export function replaceCosts(costs: Cost[]) {
   commit({ ...cur, costs });
 }
 
+/** Supabaseから取得した書類でローカルキャッシュを置き換える（本番モード用） */
+export function replaceDocuments(documents: DocumentRec[]) {
+  const cur = getDB();
+  commit({ ...cur, documents });
+}
+
 /** バックアップ用JSONエクスポート */
 export function exportDataJSON(): string {
   const { hydrated: _hydrated, ...rest } = getDB();

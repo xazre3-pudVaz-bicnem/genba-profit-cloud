@@ -1,3 +1,5 @@
+"use client";
+
 /* eslint-disable @next/next/no-img-element */
 import {
   FileCheck2,
@@ -8,6 +10,8 @@ import {
   ReceiptText,
   ScrollText,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getDocumentSignedUrl } from "@/lib/app/data-store";
 import type { DocumentRec, DocumentType } from "@/lib/app/types";
 import { cn } from "@/lib/shared/utils";
 
@@ -31,15 +35,59 @@ const TYPE_TINTS: Record<DocumentType, string> = {
   other: "bg-neutral-100 text-neutral-500",
 };
 
+function isDirectUrl(u: string | null): boolean {
+  return !!u && /^(https?:|data:|blob:)/.test(u);
+}
+
+function isPdfPath(u: string | null): boolean {
+  return !!u && /\.pdf(\?|$)/i.test(u);
+}
+
 /**
- * 書類サムネイル。画像がある場合は表示し、
- * ない場合（デモデータ等）は書類風のプレースホルダを描画する
+ * 書類の表示用画像URLを返すフック。
+ * サムネイル（dataURL）→ 直接URL → Storageパスの署名URL の順に解決する。
+ * PDFは画像表示しない（nullを返し、プレースホルダを表示）。
+ */
+export function useDocumentImageUrl(doc: DocumentRec): string | null {
+  const direct = isDirectUrl(doc.thumbnailUrl)
+    ? doc.thumbnailUrl
+    : isDirectUrl(doc.fileUrl) && !isPdfPath(doc.fileUrl)
+      ? doc.fileUrl
+      : null;
+  const storagePath =
+    !direct && doc.fileUrl && !isDirectUrl(doc.fileUrl) && !isPdfPath(doc.fileUrl)
+      ? doc.fileUrl
+      : null;
+
+  const [signed, setSigned] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (storagePath) {
+      void getDocumentSignedUrl(storagePath).then((url) => {
+        if (alive) setSigned(url);
+      });
+    } else {
+      setSigned(null);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [storagePath]);
+
+  return direct ?? signed;
+}
+
+/**
+ * 書類サムネイル。画像がある場合は表示し（Storage保存分は署名URLで解決）、
+ * ない場合（PDF・デモデータ等）は書類風のプレースホルダを描画する
  */
 export function DocThumb({ doc, className }: { doc: DocumentRec; className?: string }) {
-  if (doc.thumbnailUrl) {
+  const imageUrl = useDocumentImageUrl(doc);
+
+  if (imageUrl) {
     return (
       <div className={cn("overflow-hidden rounded-lg border border-neutral-200 bg-white", className)}>
-        <img src={doc.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" />
       </div>
     );
   }

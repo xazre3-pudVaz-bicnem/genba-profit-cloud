@@ -220,14 +220,20 @@ Storageは `{company_id}/...` パスで分離。
 
 ## Supabase移行状況
 
-- **[済] projects / revenues / costs** — 一覧取得・作成・編集・削除がDB保存（`lib/app/supabase-store.ts`）。
+- **[済] projects / revenues / costs / documents** — 一覧取得・作成・編集・削除がDB保存（`lib/app/supabase-store.ts`）。
   ローカルキャッシュへ楽観反映→バックグラウンドでwrite-through同期（直列キューで実行順を保証）。
   失敗時はトースト+該当エンティティのDB再取得でUIを戻す。
   案件詳細・案件一覧・ダッシュボードの収支は `lib/app/calc.ts` がこのキャッシュから自動計算するため、
   すべてSupabase上の実データ連動になる。
-- **[未] documents / estimates / invoices / members / company**
-  → `supabase-store.ts` に `sp〇〇` を追加し `data-store.ts` の `supabaseStore` に割り当てるだけで順次移行可能。
-  書類が未移行のため、売上・原価の `document_id` はUUIDのときのみDBへ送る（デモ由来IDは送らない）
+- **書類ファイル（Storage）** — 本番モードでは原本を非公開バケット `documents` へ保存。
+  パスは `{company_id}/projects/{project_id}/documents/{timestamp}-{filename}`
+  （案件未定は `{company_id}/unassigned/documents/...`）。
+  StorageのRLSポリシーが「第1フォルダ = 会社ID」を要求するため、パスは必ず会社IDから始める。
+  プレビューは `getDocumentSignedUrl`（署名URL・60分・50分キャッシュ）で行う。
+  対応形式は jpg / jpeg / png / webp / pdf、上限10MB（`lib/app/upload.ts`）。
+  書類削除時はStorageのファイルも削除する。デモモードはアップロードせずローカルサムネイルのみ。
+- **[未] estimates / invoices / members / company**
+  → `supabase-store.ts` に `sp〇〇` を追加し `data-store.ts` の `supabaseStore` に割り当てるだけで順次移行可能
 - ストア選択: **Supabase設定済み + supabaseセッション → supabaseStore ／ それ以外（`/app?demo=true` 含むデモ）→ demoStore**
 - 本番モードとデモモードはlocalStorage名前空間を分離（デモ操作が実データ表示に混ざらない）
 - 初回ログイン時、プロフィール未作成なら会社+プロフィールを自動作成（自己修復）

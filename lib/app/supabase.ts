@@ -28,27 +28,5 @@ export function getSupabase(): SupabaseClient | null {
   return client;
 }
 
-/**
- * 書類画像をSupabase Storageへアップロードする。
- * 未設定・失敗時はnullを返す（デモモードではローカルサムネイルのみ保持）。
- */
-export async function uploadDocumentImage(
-  dataUrl: string,
-  fileName: string
-): Promise<string | null> {
-  const supabase = getSupabase();
-  if (!supabase) return null;
-  try {
-    const blob = await (await fetch(dataUrl)).blob();
-    const path = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    const { error } = await supabase.storage.from("documents").upload(path, blob, {
-      contentType: blob.type,
-      upsert: false,
-    });
-    if (error) return null;
-    const { data } = supabase.storage.from("documents").getPublicUrl(path);
-    return data.publicUrl ?? null;
-  } catch {
-    return null;
-  }
-}
+// 書類ファイルのアップロード・署名URLは lib/app/supabase-store.ts が担当する
+// （会社IDのパス規約とRLSポリシーに従うため）

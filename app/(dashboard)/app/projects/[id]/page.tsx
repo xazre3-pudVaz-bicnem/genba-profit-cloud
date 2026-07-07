@@ -607,6 +607,15 @@ function ProjectDetailContent() {
                       </p>
                       <p className="text-[10px] text-neutral-400">
                         {DOCUMENT_TYPES[doc.documentType]}・{shortDate(doc.documentDate)}
+                        {doc.registeredTo
+                          ? `・${
+                              doc.registeredTo.kind === "revenue"
+                                ? "売上"
+                                : COST_TYPES[
+                                    db.costs.find((c) => c.id === doc.registeredTo?.id)?.type ?? "expense"
+                                  ].shortLabel
+                            }に登録済`
+                          : ""}
                       </p>
                       <p className="text-[11px] font-semibold text-neutral-700 tnum">
                         {doc.totalAmount !== null ? yen(doc.totalAmount) : "金額未読取"}

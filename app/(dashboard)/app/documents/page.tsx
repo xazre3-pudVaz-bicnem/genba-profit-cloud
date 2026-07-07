@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, FileSearch, Trash2 } from "lucide-react";
+import { Camera, ExternalLink, FileSearch, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
@@ -17,12 +17,20 @@ import { PageSkeleton } from "@/components/shared/skeleton";
 import { FilterChips } from "@/components/shared/tabs";
 import { toast } from "@/components/shared/toast";
 import {
+  COST_TYPES,
   DOCUMENT_STATUSES,
   DOCUMENT_TYPES,
   EXPENSE_CATEGORIES,
 } from "@/lib/app/constants";
 import { calcTax, formatDate, shortDate, yen } from "@/lib/shared/format";
-import { addCost, addRevenue, removeDocument, updateDocument, useDB } from "@/lib/app/data-store";
+import {
+  addCost,
+  addRevenue,
+  getDocumentSignedUrl,
+  removeDocument,
+  updateDocument,
+  useDB,
+} from "@/lib/app/data-store";
 import type {
   DocumentRec,
   DocumentStatus,
@@ -98,6 +106,14 @@ function DocumentsContent() {
   if (!db.hydrated) return <PageSkeleton />;
 
   const projectOf = (id: string | null) => db.projects.find((p) => p.id === id);
+
+  /** 登録先ラベル（売上 / 発注費 / 材料費 / 経費） */
+  const registeredLabel = (doc: DocumentRec): string | null => {
+    if (!doc.registeredTo) return null;
+    if (doc.registeredTo.kind === "revenue") return "売上";
+    const cost = db.costs.find((c) => c.id === doc.registeredTo?.id);
+    return cost ? COST_TYPES[cost.type].shortLabel : "原価";
+  };
 
   // 最新の状態を参照する（ダイアログ表示中の更新に追従）
   const current = selected ? db.documents.find((d) => d.id === selected.id) ?? null : null;
@@ -260,6 +276,11 @@ function DocumentsContent() {
                   </p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <StatusBadge meta={DOCUMENT_STATUSES[doc.status]} />
+                    {registeredLabel(doc) ? (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        {registeredLabel(doc)}に登録
+                      </span>
+                    ) : null}
                     {project ? (
                       <span className="inline-flex max-w-[160px] items-center gap-1 truncate rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: project.color }} />
@@ -305,7 +326,24 @@ function DocumentsContent() {
       >
         {current ? (
           <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
-            <DocThumb doc={current} className="h-44 w-full sm:h-48" />
+            <div className="space-y-2">
+              <DocThumb doc={current} className="h-44 w-full sm:h-48" />
+              {current.fileUrl ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  onClick={async () => {
+                    const url = await getDocumentSignedUrl(current.fileUrl);
+                    if (url) window.open(url, "_blank", "noopener");
+                    else toast({ title: "原本を開けませんでした", description: "時間をおいて再度お試しください", variant: "error" });
+                  }}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  原本を開く
+                </Button>
+              ) : null}
+            </div>
             <div className="space-y-3.5">
               <div className="grid grid-cols-2 gap-3 rounded-xl bg-neutral-50 p-3.5">
                 <div>
@@ -366,8 +404,7 @@ function DocumentsContent() {
 
               {current.registeredTo ? (
                 <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-700">
-                  この書類は収支に登録済みです（
-                  {current.registeredTo.kind === "revenue" ? "売上" : "原価"}）
+                  この書類は収支に登録済みです（{registeredLabel(current) ?? "原価"}）
                 </p>
               ) : current.projectId ? (
                 <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-3.5">

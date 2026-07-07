@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Camera,
   CheckCircle2,
+  FileText,
   Info,
   ScanLine,
   Sparkles,
@@ -32,17 +33,18 @@ import {
   PAYMENT_METHODS,
 } from "@/lib/app/constants";
 import { calcTax, pct1, todayISO, yen } from "@/lib/shared/format";
-import { analyzeDocument, makeThumbnail, resizeForUpload, type AnalyzeOutcome } from "@/lib/app/ocr";
+import { analyzeDocument, makeThumbnail, type AnalyzeOutcome } from "@/lib/app/ocr";
 import {
   addCost,
   addDocument,
   addRevenue,
   getDB,
   updateDocument,
+  uploadDocumentFile,
   useDB,
   useSession,
 } from "@/lib/app/data-store";
-import { uploadDocumentImage } from "@/lib/app/supabase";
+import { isPdfFile } from "@/lib/app/upload";
 import type {
   DocumentType,
   ExpenseCategory,
@@ -113,6 +115,10 @@ function UploadContent() {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<DoneInfo | null>(null);
   const thumbRef = useRef<string | null>(null);
+  // Storageアップロード（本番モードのみ・解析と並行実行）。デモモードはnull
+  const uploadRef = useRef<Promise<string | null> | null>(null);
+
+  const isPdf = file ? isPdfFile(file) : false;
 
   const candidates = useMemo(
     () =>
@@ -136,6 +142,15 @@ function UploadContent() {
   const startAnalyze = async () => {
     if (!file) return;
     setStep("analyzing");
+    // 原本をStorageへ保存（本番モードのみ）。失敗しても書類データの登録は続行できる
+    uploadRef.current = uploadDocumentFile(file, selectedProject).catch((err: unknown) => {
+      toast({
+        title: "ファイルの保存に失敗しました",
+        description: `${err instanceof Error ? err.message : ""} 読み取り内容の登録は続行できます`.trim(),
+        variant: "error",
+      });
+      return null;
+    });
     const [thumb, result] = await Promise.all([
       makeThumbnail(file),
       analyzeDocument(file, docType),
@@ -168,16 +183,8 @@ function UploadContent() {
       ? Math.min(outcome.result.taxAmount, form.amount)
       : calcTax(form.amount, "inclusive").tax;
 
-    // Supabase設定時はStorageへアップロード（未設定ならスキップ）
-    let fileUrl: string | null = null;
-    if (file) {
-      try {
-        const resized = await resizeForUpload(file);
-        fileUrl = await uploadDocumentImage(resized.dataUrl, file.name);
-      } catch {
-        fileUrl = null;
-      }
-    }
+    // Storageへの保存結果（解析中に並行実行済み。デモモード・失敗時はnull）
+    const fileUrl: string | null = uploadRef.current ? await uploadRef.current : null;
 
     const effectiveTarget: RegisterTarget = selectedProject ? form.target : "none";
     const topCandidate = candidates[0];
@@ -254,10 +261,13 @@ function UploadContent() {
     setSaving(false);
     setStep("done");
     toast({
-      title: "書類を保存しました",
-      description:
+      title:
         selectedProject && effectiveTarget !== "none"
-          ? "案件の収支に反映しました"
+          ? `${TARGET_LABELS[effectiveTarget].replace("として登録", "")}として登録しました`
+          : "書類を保存しました",
+      description:
+        project && effectiveTarget !== "none"
+          ? `${project.name}の利益率に反映しました`
           : undefined,
     });
   };
@@ -271,6 +281,7 @@ function UploadContent() {
     setSelectedProject(contextProjectId);
     setDone(null);
     thumbRef.current = null;
+    uploadRef.current = null;
   };
 
   const doneFin = done?.projectId ? projectFinance(done.projectId, db) : null;
@@ -311,12 +322,22 @@ function UploadContent() {
       {step === "type" && previewUrl ? (
         <Card className="p-5">
           <div className="flex flex-col gap-5 sm:flex-row">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewUrl}
-              alt="アップロードした書類"
-              className="max-h-64 w-full rounded-xl border border-neutral-200 object-contain sm:w-56"
-            />
+            {isPdf ? (
+              <div className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-10 sm:w-56">
+                <FileText className="h-10 w-10 text-neutral-400" />
+                <p className="max-w-full truncate text-xs font-medium text-neutral-600">
+                  {file?.name}
+                </p>
+                <p className="text-[10px] text-neutral-400">PDFファイル</p>
+              </div>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={previewUrl}
+                alt="アップロードした書類"
+                className="max-h-64 w-full rounded-xl border border-neutral-200 object-contain sm:w-56"
+              />
+            )}
             <div className="flex-1">
               <p className="text-sm font-bold text-neutral-900">書類の種別を選択してください</p>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -385,13 +406,18 @@ function UploadContent() {
 
           <Card className="p-5">
             <div className="flex gap-4">
-              {previewUrl ? (
+              {previewUrl && !isPdf ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={previewUrl}
                   alt=""
                   className="hidden h-40 w-32 rounded-xl border border-neutral-200 object-cover sm:block"
                 />
+              ) : isPdf ? (
+                <div className="hidden h-40 w-32 flex-col items-center justify-center gap-1.5 rounded-xl border border-neutral-200 bg-neutral-50 sm:flex">
+                  <FileText className="h-8 w-8 text-neutral-400" />
+                  <p className="text-[10px] text-neutral-400">PDF</p>
+                </div>
               ) : null}
               <div className="grid flex-1 gap-3.5">
                 <div className="grid grid-cols-2 gap-3">

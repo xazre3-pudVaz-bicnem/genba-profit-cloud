@@ -111,6 +111,7 @@ const MOCK_VENDORS: Record<string, MockVendor[]> = {
     { name: "建デポ 新宿店", items: ["石膏ボード", "パテ・副資材", "LGS材"], amount: 67800, payment: "credit" },
     { name: "カインズ 練馬店", items: ["コーキング材", "養生テープ", "内装補修材"], amount: 12400, payment: "credit" },
     { name: "ENEOS セルフSS", items: ["レギュラーガソリン 45.2L"], amount: 7900, payment: "credit" },
+    { name: "タイムズ 練馬第3", items: ["駐車場代（現場前）"], amount: 1100, payment: "cash" },
   ],
   receipt_official: [
     { name: "エコ産業株式会社", items: ["産業廃棄物処分費"], amount: 88000, payment: "cash", confidence: "high" },

@@ -3,6 +3,7 @@
 import { Camera, ImagePlus } from "lucide-react";
 import { Card } from "@/components/shared/card";
 import { toast } from "@/components/shared/toast";
+import { DOCUMENT_ACCEPT, validateDocumentFile } from "@/lib/app/upload";
 
 interface DocumentUploadBoxProps {
   onFile: (file: File) => void;
@@ -12,8 +13,9 @@ interface DocumentUploadBoxProps {
 export function DocumentUploadBox({ onFile }: DocumentUploadBoxProps) {
   const handle = (file: File | undefined | null) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "画像ファイルを選択してください", variant: "error" });
+    const invalid = validateDocumentFile(file);
+    if (invalid) {
+      toast({ title: invalid, variant: "error" });
       return;
     }
     onFile(file);
@@ -57,17 +59,19 @@ export function DocumentUploadBox({ onFile }: DocumentUploadBoxProps) {
           <label className="w-full cursor-pointer">
             <input
               type="file"
-              accept="image/*"
+              accept={DOCUMENT_ACCEPT}
               className="hidden"
               onChange={(e) => handle(e.target.files?.[0])}
             />
             <span className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white text-base font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50">
               <ImagePlus className="h-5 w-5" />
-              写真を選択
+              ファイルを選択
             </span>
           </label>
         </div>
-        <p className="text-[11px] text-neutral-400">PCの場合はここに画像をドラッグ&ドロップ</p>
+        <p className="text-[11px] text-neutral-400">
+          jpg / png / webp / pdf・10MBまで。PCの場合はここにドラッグ&ドロップ
+        </p>
       </div>
     </Card>
   );

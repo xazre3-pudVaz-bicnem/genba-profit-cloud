@@ -15,8 +15,9 @@
 //   ※ /app?demo=true はデモセッションになるため常に demoStore
 //
 // 移行状況:
-//   [済] projects / revenues / costs（一覧取得・作成・編集・削除・詳細）
-//   [未] documents / estimates / invoices / members / company
+//   [済] projects / revenues / costs / documents（一覧取得・作成・編集・削除）
+//        書類ファイルは Storage documents バケット + 署名URLプレビュー
+//   [未] estimates / invoices / members / company
 //        → lib/app/supabase-store.ts に sp〇〇 を追加し、下の supabaseStore に
 //          割り当てるだけで順次移行できる
 // ============================================================
@@ -24,14 +25,18 @@
 import * as demo from "./store";
 import {
   spAddCost,
+  spAddDocument,
   spAddProject,
   spAddRevenue,
   spRemoveCost,
+  spRemoveDocument,
   spRemoveProject,
   spRemoveRevenue,
   spUpdateCost,
+  spUpdateDocument,
   spUpdateProject,
   spUpdateRevenue,
+  spUploadDocumentFile,
 } from "./supabase-store";
 import { isSupabaseConfigured } from "./supabase";
 import type {
@@ -112,7 +117,7 @@ export const demoStore: DataStore = {
 
 /**
  * Supabase実装。
- * projects / revenues / costs はDBへwrite-through同期、
+ * projects / revenues / costs / documents はDBへwrite-through同期、
  * 未移行のエンティティはローカルキャッシュ（live名前空間）で動作する。
  */
 export const supabaseStore: DataStore = {
@@ -126,6 +131,9 @@ export const supabaseStore: DataStore = {
   addCost: spAddCost,
   updateCost: spUpdateCost,
   removeCost: spRemoveCost,
+  addDocument: spAddDocument,
+  updateDocument: spUpdateDocument,
+  removeDocument: spRemoveDocument,
 };
 
 /**
@@ -137,6 +145,25 @@ export function getDataStore(): DataStore {
     return supabaseStore;
   }
   return demoStore;
+}
+
+function isSupabaseMode(): boolean {
+  return isSupabaseConfigured() && demo.getSession()?.mode === "supabase";
+}
+
+/**
+ * 書類ファイルの保存。
+ * 本番モード: Storageへアップロードして保存パスを返す（失敗時はthrow）。
+ * デモモード: アップロードせずnull（サムネイルのローカル保存のみ）。
+ */
+export async function uploadDocumentFile(
+  file: File,
+  projectId: string | null
+): Promise<string | null> {
+  if (isSupabaseMode()) {
+    return spUploadDocumentFile(file, projectId);
+  }
+  return null;
 }
 
 // ------------------------------------------------------------
@@ -230,4 +257,4 @@ export {
   type EstimateInput,
   type InvoiceInput,
 } from "./store";
-export { hydrateFromSupabase } from "./supabase-store";
+export { hydrateFromSupabase, getDocumentSignedUrl } from "./supabase-store";
