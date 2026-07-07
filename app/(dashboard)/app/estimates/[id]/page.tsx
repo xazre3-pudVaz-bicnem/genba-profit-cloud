@@ -13,7 +13,7 @@ import { Select } from "@/components/shared/select";
 import { PageSkeleton } from "@/components/shared/skeleton";
 import { toast } from "@/components/shared/toast";
 import { ESTIMATE_STATUSES } from "@/lib/app/constants";
-import { removeEstimate, updateEstimate, useDB } from "@/lib/app/store";
+import { removeEstimate, updateEstimate, useDB } from "@/lib/app/data-store";
 import type { EstimateStatus } from "@/lib/app/types";
 
 export default function EstimateDetailPage() {

@@ -33,7 +33,9 @@ export function ProjectTable({ rows }: { rows: ProjectRow[] }) {
             <TH>案件名</TH>
             <TH>ステータス</TH>
             <TH align="right">売上</TH>
-            <TH align="right">原価</TH>
+            <TH align="right">発注費</TH>
+            <TH align="right">材料費</TH>
+            <TH align="right">経費</TH>
             <TH align="right">粗利</TH>
             <TH>利益率</TH>
             <TH align="right">未請求</TH>
@@ -44,10 +46,10 @@ export function ProjectTable({ rows }: { rows: ProjectRow[] }) {
           <TBody>
             {rows.map(({ project, fin, managerName }) => (
               <TR key={project.id} onClick={() => router.push(`/app/projects/${project.id}`)}>
-                <TD className="max-w-[260px]">
+                <TD className="max-w-[240px]">
                   <div className="flex items-center gap-2.5">
                     <span
-                      className="h-8 w-1 shrink-0 rounded-full"
+                      className="h-9 w-1 shrink-0 rounded-full"
                       style={{ background: project.color }}
                     />
                     <div className="min-w-0">
@@ -55,8 +57,9 @@ export function ProjectTable({ rows }: { rows: ProjectRow[] }) {
                         {project.name}
                       </p>
                       <p className="truncate text-[11px] text-neutral-400">
-                        {project.customerName}
-                        {managerName ? `・担当 ${managerName}` : ""}
+                        {[project.customerName, project.siteAddress, managerName ? `担当 ${managerName}` : null]
+                          .filter(Boolean)
+                          .join("・")}
                       </p>
                     </div>
                   </div>
@@ -68,9 +71,13 @@ export function ProjectTable({ rows }: { rows: ProjectRow[] }) {
                   <CurrencyText value={fin.revenueTotal} dashZero />
                 </TD>
                 <TD align="right">
-                  <span title={`発注 ${yen(fin.orderTotal)} / 材料 ${yen(fin.materialTotal)} / 経費 ${yen(fin.expenseTotal)}`}>
-                    <CurrencyText value={fin.costTotal} dashZero />
-                  </span>
+                  <CurrencyText value={fin.orderTotal} dashZero className="text-xs" />
+                </TD>
+                <TD align="right">
+                  <CurrencyText value={fin.materialTotal} dashZero className="text-xs" />
+                </TD>
+                <TD align="right">
+                  <CurrencyText value={fin.expenseTotal} dashZero className="text-xs" />
                 </TD>
                 <TD align="right">
                   <CurrencyText value={fin.profit} colorBySign dashZero={!fin.hasRevenue && !fin.hasCost} />

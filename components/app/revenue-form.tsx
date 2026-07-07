@@ -12,7 +12,7 @@ import { Textarea } from "@/components/shared/textarea";
 import { toast } from "@/components/shared/toast";
 import { REVENUE_STATUSES } from "@/lib/app/constants";
 import { calcTax, yen } from "@/lib/shared/format";
-import { addRevenue, updateRevenue, useDB } from "@/lib/app/store";
+import { addRevenue, updateRevenue, useDB } from "@/lib/app/data-store";
 import type { Revenue, RevenueStatus, TaxType } from "@/lib/app/types";
 
 interface RevenueFormProps {

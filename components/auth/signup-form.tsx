@@ -9,7 +9,12 @@ import { Input } from "@/components/shared/input";
 import { Field } from "@/components/shared/label";
 import { toast } from "@/components/shared/toast";
 import { appPath } from "@/lib/app/routes";
-import { setSession, startDemoSession, updateCompany } from "@/lib/app/store";
+import {
+  hydrateFromSupabase,
+  setSession,
+  startDemoSession,
+  updateCompany,
+} from "@/lib/app/data-store";
 import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
 import { appAuthUrl } from "@/lib/shared/urls";
 
@@ -46,27 +51,11 @@ export function SignupForm() {
     }
 
     if (data.session) {
-      // 会社・プロフィールを作成（RLS: 本人のみ作成可能）
-      try {
-        const { data: companyRow } = await supabase
-          .from("companies")
-          .insert({ name: companyName })
-          .select("id")
-          .single();
-        if (companyRow) {
-          await supabase.from("profiles").insert({
-            id: data.session.user.id,
-            company_id: companyRow.id,
-            name,
-            email,
-            role: "owner",
-          });
-        }
-      } catch {
-        // 初期化失敗時もログイン自体は継続
-      }
+      // 会社・プロフィールの作成は hydrateFromSupabase → ensureCompanyId が
+      // user_metadata（company_name / name）をもとに自動で行う
       setSession({ name, email, role: "owner", mode: "supabase" });
       updateCompany({ name: companyName });
+      void hydrateFromSupabase();
       setLoading(false);
       toast({ title: "アカウントを作成しました" });
       router.push(appPath());
@@ -74,7 +63,8 @@ export function SignupForm() {
       setLoading(false);
       toast({
         title: "確認メールを送信しました",
-        description: "メール内のリンクをクリックして登録を完了してください",
+        description:
+          "メール内のリンクで確認後、ログインしてください。会社情報は初回ログイン時に自動作成されます",
       });
     }
   };

@@ -14,7 +14,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/shared/table";
 import { FilterChips } from "@/components/shared/tabs";
 import { ESTIMATE_STATUSES } from "@/lib/app/constants";
 import { formatDate } from "@/lib/shared/format";
-import { useDB } from "@/lib/app/store";
+import { useDB } from "@/lib/app/data-store";
 import type { EstimateStatus } from "@/lib/app/types";
 
 export default function EstimatesPage() {

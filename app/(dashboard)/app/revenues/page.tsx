@@ -19,7 +19,7 @@ import { FilterChips } from "@/components/shared/tabs";
 import { toast } from "@/components/shared/toast";
 import { REVENUE_STATUSES } from "@/lib/app/constants";
 import { formatDate, isOverdue, todayISO, yen } from "@/lib/shared/format";
-import { removeRevenue, updateRevenue, useDB } from "@/lib/app/store";
+import { removeRevenue, updateRevenue, useDB } from "@/lib/app/data-store";
 import type { Revenue } from "@/lib/app/types";
 import { cn } from "@/lib/shared/utils";
 

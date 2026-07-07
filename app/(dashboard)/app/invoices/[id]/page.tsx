@@ -12,8 +12,14 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageSkeleton } from "@/components/shared/skeleton";
 import { toast } from "@/components/shared/toast";
 import { invoiceIsOverdue } from "@/lib/app/calc";
-import { todayISO } from "@/lib/shared/format";
-import { removeInvoice, updateInvoice, useDB } from "@/lib/app/store";
+import { todayISO, yen } from "@/lib/shared/format";
+import {
+  addRevenue,
+  removeInvoice,
+  updateInvoice,
+  updateRevenue,
+  useDB,
+} from "@/lib/app/data-store";
 
 export default function InvoiceDetailPage() {
   const params = useParams<{ id: string }>();
@@ -25,6 +31,10 @@ export default function InvoiceDetailPage() {
   if (!db.hydrated) return <PageSkeleton />;
 
   const invoice = db.invoices.find((i) => i.id === params.id);
+  // この請求書から作成された売上（メモの請求番号で紐づけ）
+  const linkedRevenue = invoice
+    ? db.revenues.find((r) => r.memo.includes(invoice.invoiceNumber))
+    : undefined;
 
   if (!invoice) {
     return (
@@ -59,7 +69,14 @@ export default function InvoiceDetailPage() {
                   variant="secondary"
                   onClick={() => {
                     updateInvoice(invoice.id, { status: "paid", paidDate: todayISO() });
-                    toast({ title: "入金を記録しました" });
+                    // 連動する売上も入金済にする
+                    if (linkedRevenue && linkedRevenue.status !== "paid") {
+                      updateRevenue(linkedRevenue.id, { status: "paid", paidDate: todayISO() });
+                    }
+                    toast({
+                      title: "入金を記録しました",
+                      description: linkedRevenue ? "案件の売上にも反映しました" : undefined,
+                    });
                   }}
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -70,11 +87,31 @@ export default function InvoiceDetailPage() {
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    updateInvoice(invoice.id, {
-                      status: "sent",
-                      invoiceDate: invoice.invoiceDate ?? todayISO(),
-                    });
-                    toast({ title: "請求済にしました" });
+                    const invoiceDate = invoice.invoiceDate ?? todayISO();
+                    updateInvoice(invoice.id, { status: "sent", invoiceDate });
+                    // 案件に紐づく請求は売上（請求済）としても計上する
+                    if (invoice.projectId && !linkedRevenue) {
+                      addRevenue({
+                        projectId: invoice.projectId,
+                        title: invoice.title,
+                        amount: invoice.total,
+                        taxType: "exclusive",
+                        taxAmount: invoice.taxAmount,
+                        billingDueDate: invoiceDate,
+                        billedDate: invoiceDate,
+                        paymentDueDate: invoice.dueDate,
+                        paidDate: null,
+                        status: "billed",
+                        memo: `請求書 ${invoice.invoiceNumber} から自動登録`,
+                        documentId: null,
+                      });
+                      toast({
+                        title: "請求済にしました",
+                        description: `${yen(invoice.total)} を案件の売上に反映しました`,
+                      });
+                    } else {
+                      toast({ title: "請求済にしました" });
+                    }
                   }}
                 >
                   請求済にする

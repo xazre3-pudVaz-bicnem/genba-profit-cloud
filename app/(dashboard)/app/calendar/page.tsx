@@ -8,7 +8,7 @@ import { Button } from "@/components/shared/button";
 import { Dialog } from "@/components/shared/dialog";
 import { PageSkeleton } from "@/components/shared/skeleton";
 import { isOverdue, monthLabel, todayISO, yen } from "@/lib/shared/format";
-import { useDB } from "@/lib/app/store";
+import { useDB } from "@/lib/app/data-store";
 import { cn } from "@/lib/shared/utils";
 
 // ============================================================

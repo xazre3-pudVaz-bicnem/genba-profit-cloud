@@ -22,7 +22,7 @@ import {
   EXPENSE_CATEGORIES,
 } from "@/lib/app/constants";
 import { calcTax, formatDate, shortDate, yen } from "@/lib/shared/format";
-import { addCost, addRevenue, removeDocument, updateDocument, useDB } from "@/lib/app/store";
+import { addCost, addRevenue, removeDocument, updateDocument, useDB } from "@/lib/app/data-store";
 import type {
   DocumentRec,
   DocumentStatus,

@@ -218,9 +218,19 @@ Storageは `{company_id}/...` パスで分離。
 
 ---
 
+## Supabase移行状況
+
+- **[済] projects** — 一覧取得・作成・編集・削除がDB保存（`lib/app/supabase-store.ts`）。
+  ローカルキャッシュへ楽観反映→バックグラウンドでwrite-through同期。失敗時はトースト+DB再取得。
+- **[未] revenues / costs / documents / estimates / invoices / members / company**
+  → `supabase-store.ts` に `sp〇〇` を追加し `data-store.ts` の `supabaseStore` に割り当てるだけで順次移行可能
+- ストア選択: **Supabase設定済み + supabaseセッション → supabaseStore ／ それ以外（`/app?demo=true` 含むデモ）→ demoStore**
+- 本番モードとデモモードはlocalStorage名前空間を分離（デモ操作が実データ表示に混ざらない）
+- 初回ログイン時、プロフィール未作成なら会社+プロフィールを自動作成（自己修復）
+
 ## 今後追加すべき機能
 
-- Supabase DB CRUDへの完全切替（`lib/app/store.ts` の関数差し替え）
+- Supabase移行の残りエンティティ（上記[未]）と Realtime購読への置き換え
 - freee / マネーフォワードCSV連携、過去案件CSVインポート
 - 銀行API連携・入金自動消込
 - 協力会社招待・発注書送付、工程表・写真台帳

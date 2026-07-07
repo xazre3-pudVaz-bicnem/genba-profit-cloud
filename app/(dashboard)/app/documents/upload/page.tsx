@@ -41,7 +41,7 @@ import {
   updateDocument,
   useDB,
   useSession,
-} from "@/lib/app/store";
+} from "@/lib/app/data-store";
 import { uploadDocumentImage } from "@/lib/app/supabase";
 import type {
   DocumentType,

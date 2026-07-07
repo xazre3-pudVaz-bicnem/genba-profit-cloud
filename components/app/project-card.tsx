@@ -7,7 +7,7 @@ import { toast } from "@/components/shared/toast";
 import type { ProjectFinance } from "@/lib/app/calc";
 import { BOARD_STATUSES, PROJECT_STATUSES } from "@/lib/app/constants";
 import { appPath } from "@/lib/app/routes";
-import { updateProject } from "@/lib/app/store";
+import { updateProject } from "@/lib/app/data-store";
 import { daysUntil, shortDate, yen } from "@/lib/shared/format";
 import type { Project } from "@/lib/app/types";
 import { cn } from "@/lib/shared/utils";

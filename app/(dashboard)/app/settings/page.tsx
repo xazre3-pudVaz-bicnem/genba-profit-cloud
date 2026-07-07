@@ -13,7 +13,13 @@ import { Select } from "@/components/shared/select";
 import { PageSkeleton } from "@/components/shared/skeleton";
 import { toast } from "@/components/shared/toast";
 import { APP_NAME } from "@/lib/shared/config";
-import { exportDataJSON, resetDemoData, updateCompany, useDB } from "@/lib/app/store";
+import {
+  exportDataJSON,
+  resetDemoData,
+  updateCompany,
+  useDB,
+  useSession,
+} from "@/lib/app/data-store";
 import { isSupabaseConfigured } from "@/lib/app/supabase";
 import type { Company } from "@/lib/app/types";
 
@@ -27,6 +33,8 @@ function StatusDot({ ok }: { ok: boolean }) {
 
 export default function SettingsPage() {
   const db = useDB();
+  const session = useSession();
+  const isDemo = session?.mode !== "supabase";
   const [form, setForm] = useState<Company | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [ocrProvider, setOcrProvider] = useState<string | null>(null);
@@ -211,16 +219,21 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <CardHeader title="データ管理" description="デモデータの初期化・バックアップ" />
+          <CardHeader
+            title="データ管理"
+            description={isDemo ? "デモデータの初期化・バックアップ" : "ローカルデータのバックアップ"}
+          />
           <div className="flex flex-wrap gap-2 px-5 pb-5 pt-2">
             <Button variant="secondary" onClick={exportData}>
               <Download className="h-4 w-4" />
               JSONエクスポート
             </Button>
-            <Button variant="secondary" onClick={() => setResetOpen(true)} className="text-red-600">
-              <RotateCcw className="h-4 w-4" />
-              デモデータをリセット
-            </Button>
+            {isDemo ? (
+              <Button variant="secondary" onClick={() => setResetOpen(true)} className="text-red-600">
+                <RotateCcw className="h-4 w-4" />
+                デモデータをリセット
+              </Button>
+            ) : null}
             <Link href="/app/settings/members" className="ml-auto">
               <Button variant="ghost">メンバー管理へ</Button>
             </Link>

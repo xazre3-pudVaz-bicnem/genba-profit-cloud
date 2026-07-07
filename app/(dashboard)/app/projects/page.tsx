@@ -15,7 +15,7 @@ import { Select } from "@/components/shared/select";
 import { projectFinance } from "@/lib/app/calc";
 import { PROJECT_STATUSES, PROJECT_STATUS_ORDER } from "@/lib/app/constants";
 import { yen } from "@/lib/shared/format";
-import { useDB } from "@/lib/app/store";
+import { useDB } from "@/lib/app/data-store";
 import type { ProjectStatus } from "@/lib/app/types";
 
 type QuickFilter = "all" | "unbilled" | "unpaid" | "low_profit" | "deficit" | "pending_docs";

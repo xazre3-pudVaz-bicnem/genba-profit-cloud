@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/shared/button";
 import { appPath } from "@/lib/app/routes";
-import { setSession, useDB, useSession } from "@/lib/app/store";
+import { setSession, useDB, useSession } from "@/lib/app/data-store";
 import { getSupabase } from "@/lib/app/supabase";
 import { appAuthUrl, marketingUrl } from "@/lib/shared/urls";
 
@@ -44,11 +44,11 @@ export function AppHeader() {
       <div className="flex shrink-0 items-center gap-2">
         {isDemo ? (
           <>
-            <span className="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-[10px] font-bold text-brand-700">
+            <span className="hidden rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-[10px] font-bold text-brand-700 sm:inline-block">
               デモモード
             </span>
-            <Link href={appAuthUrl("/signup")} className="hidden sm:block">
-              <Button variant="secondary" size="sm">
+            <Link href={appAuthUrl("/signup")}>
+              <Button variant="secondary" size="sm" className="text-xs">
                 本番利用を開始する
               </Button>
             </Link>

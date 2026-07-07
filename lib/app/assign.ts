@@ -61,7 +61,7 @@ export function suggestProjects(input: SuggestInput, db: DB): AssignCandidate[] 
           (contains(c.vendorName, ocr.vendorName) || contains(ocr.vendorName, c.vendorName))
       );
       if (history) {
-        score += 40;
+        score += 45;
         reasons.push("この取引先を過去にこの案件へ登録");
       }
     }

@@ -11,7 +11,7 @@ import { toast } from "@/components/shared/toast";
 import { projectFinance } from "@/lib/app/calc";
 import { BOARD_STATUSES, PROJECT_STATUSES } from "@/lib/app/constants";
 import { appPath } from "@/lib/app/routes";
-import { updateProject, useDB } from "@/lib/app/store";
+import { updateProject, useDB } from "@/lib/app/data-store";
 import type { ProjectStatus } from "@/lib/app/types";
 import { yen } from "@/lib/shared/format";
 import { cn } from "@/lib/shared/utils";

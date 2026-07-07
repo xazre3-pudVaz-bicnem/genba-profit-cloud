@@ -17,14 +17,17 @@ import type {
 } from "./types";
 
 // ============================================================
-// クライアントストア（デモモード: localStorage永続化）
+// クライアントストア（localStorage永続化 + リアクティブ購読）
 //
-// 将来的にSupabaseへ差し替える場合は、この層のCRUD関数を
-// Supabaseクエリに置き換える（lib/supabase/ 参照）。
-// UI側はすべてこの層の関数のみを呼ぶため、差し替え影響は最小。
+// デモモード: サンプルデータ入りの "demo" 名前空間
+// 本番モード: Supabaseと同期する "live" 名前空間（キャッシュ役）
+//   → デモの操作データが実ワークスペースへ混ざらないよう分離する
+// Supabaseへの書き込みは lib/app/supabase-store.ts が担当し、
+// このストアはUIが購読する唯一のソースとして機能する。
 // ============================================================
 
-const DB_KEY = "genba-cloud-db-v1";
+const DEMO_DB_KEY = "genba-cloud-db-v1";
+const LIVE_DB_KEY = "genba-cloud-db-live-v1";
 const SESSION_KEY = "genba-cloud-session-v1";
 
 let db: DB | null = null;
@@ -41,27 +44,38 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
+/** モードに応じた保存キー（本番=Supabase同期キャッシュ / デモ=サンプル） */
+function isLiveMode(): boolean {
+  return getSession()?.mode === "supabase";
+}
+
+function storageKey(): string {
+  return isLiveMode() ? LIVE_DB_KEY : DEMO_DB_KEY;
+}
+
 function load(): DB {
   if (typeof window === "undefined") return SERVER_DB;
+  const live = isLiveMode();
   try {
-    const raw = localStorage.getItem(DB_KEY);
+    const raw = localStorage.getItem(storageKey());
     if (raw) {
       const parsed = JSON.parse(raw) as Omit<DB, "hydrated">;
       return { ...emptyDB(), ...parsed, hydrated: true };
     }
   } catch {
-    // 壊れたデータは破棄して再シード
+    // 壊れたデータは破棄して初期化
   }
-  const seeded = seedDemoData();
-  persist(seeded);
-  return seeded;
+  // 本番モードは空の状態から（SupabaseからhydrateFromSupabaseで取得）
+  const initial = live ? { ...emptyDB(), hydrated: true } : seedDemoData();
+  persist(initial);
+  return initial;
 }
 
 function persist(next: DB) {
   if (typeof window === "undefined") return;
   try {
     const { hydrated: _hydrated, ...rest } = next;
-    localStorage.setItem(DB_KEY, JSON.stringify(rest));
+    localStorage.setItem(storageKey(), JSON.stringify(rest));
   } catch {
     // ストレージ容量超過時は永続化をスキップ（メモリ上では動作継続）
   }
@@ -83,9 +97,15 @@ export function useDB(): DB {
   return useSyncExternalStore(subscribe, getDB, () => SERVER_DB);
 }
 
-/** デモデータを初期状態に戻す */
+/** デモデータを初期状態に戻す（本番モードではローカルキャッシュのクリア） */
 export function resetDemoData() {
-  commit(seedDemoData());
+  commit(isLiveMode() ? { ...emptyDB(), hydrated: true } : seedDemoData());
+}
+
+/** Supabaseから取得した案件でローカルキャッシュを置き換える（本番モード用） */
+export function replaceProjects(projects: Project[]) {
+  const cur = getDB();
+  commit({ ...cur, projects });
 }
 
 /** バックアップ用JSONエクスポート */
@@ -387,6 +407,7 @@ export function getSession(): Session | null {
 }
 
 export function setSession(next: Session | null) {
+  const prevMode = session?.mode ?? null;
   session = next;
   sessionLoaded = true;
   if (typeof window !== "undefined") {
@@ -396,6 +417,10 @@ export function setSession(next: Session | null) {
     } catch {
       // ignore
     }
+  }
+  // モードが変わったらDBキャッシュを読み直す（demo⇔live名前空間の切替）
+  if ((next?.mode ?? null) !== prevMode) {
+    db = null;
   }
   emit();
 }

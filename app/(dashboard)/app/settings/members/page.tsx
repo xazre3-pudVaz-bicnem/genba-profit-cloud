@@ -12,7 +12,7 @@ import { Select } from "@/components/shared/select";
 import { PageSkeleton } from "@/components/shared/skeleton";
 import { toast } from "@/components/shared/toast";
 import { ROLES } from "@/lib/app/constants";
-import { addMember, removeMember, updateMember, useDB } from "@/lib/app/store";
+import { addMember, removeMember, updateMember, useDB } from "@/lib/app/data-store";
 import type { Member, Role } from "@/lib/app/types";
 
 export default function MembersPage() {

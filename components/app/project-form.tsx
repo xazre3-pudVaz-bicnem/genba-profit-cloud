@@ -9,7 +9,7 @@ import { Select } from "@/components/shared/select";
 import { Textarea } from "@/components/shared/textarea";
 import { toast } from "@/components/shared/toast";
 import { PROJECT_COLORS, PROJECT_STATUSES, PROJECT_STATUS_ORDER } from "@/lib/app/constants";
-import { addProject, updateProject, useDB } from "@/lib/app/store";
+import { addProject, updateProject, useDB } from "@/lib/app/data-store";
 import type { Project, ProjectStatus } from "@/lib/app/types";
 import { cn } from "@/lib/shared/utils";
 

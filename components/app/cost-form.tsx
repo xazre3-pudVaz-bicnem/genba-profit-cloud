@@ -12,7 +12,7 @@ import { Textarea } from "@/components/shared/textarea";
 import { toast } from "@/components/shared/toast";
 import { COST_TYPES, EXPENSE_CATEGORIES, PAYMENT_METHODS } from "@/lib/app/constants";
 import { calcTax, todayISO, yen } from "@/lib/shared/format";
-import { addCost, updateCost, useDB } from "@/lib/app/store";
+import { addCost, updateCost, useDB } from "@/lib/app/data-store";
 import type { Cost, CostStatus, CostType, ExpenseCategory, PaymentMethod, TaxType } from "@/lib/app/types";
 
 interface CostFormProps {

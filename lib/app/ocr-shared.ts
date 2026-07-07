@@ -97,57 +97,62 @@ export function normalizeOcr(raw: unknown, fallbackType: DocumentType): OcrResul
 interface MockVendor {
   name: string;
   items: string[];
-  min: number;
-  max: number;
+  amount: number;
   payment: PaymentMethod;
+  confidence?: "high" | "medium";
 }
 
+// デモの再現性を優先し、金額は固定・取引先は巡回で返す。
+// 各種別の先頭はデモデータと相性のよい取引先（案件候補が「信頼度 高」で出る）
 const MOCK_VENDORS: Record<string, MockVendor[]> = {
   receipt: [
-    { name: "コーナンPRO 練馬店", items: ["構造用合板 12mm", "垂木・胴縁材", "ビス・金物セット"], min: 8000, max: 86000, payment: "cash" },
-    { name: "カインズ 練馬店", items: ["コーキング材", "養生テープ", "内装補修材"], min: 3000, max: 42000, payment: "credit" },
-    { name: "建デポ 新宿店", items: ["石膏ボード", "パテ・副資材", "LGS材"], min: 12000, max: 160000, payment: "credit" },
-    { name: "ENEOS セルフSS", items: ["レギュラーガソリン 45.2L"], min: 5000, max: 12000, payment: "credit" },
-    { name: "タイムズパーキング", items: ["駐車料金"], min: 800, max: 4400, payment: "cash" },
+    { name: "エスケー化研 東京支店", items: ["プレミアムシリコン 15kg × 2"], amount: 46200, payment: "transfer", confidence: "high" },
+    { name: "コーナンPRO 練馬店", items: ["構造用合板 12mm", "垂木・胴縁材", "ビス・金物セット"], amount: 38500, payment: "cash", confidence: "high" },
+    { name: "建デポ 新宿店", items: ["石膏ボード", "パテ・副資材", "LGS材"], amount: 67800, payment: "credit" },
+    { name: "カインズ 練馬店", items: ["コーキング材", "養生テープ", "内装補修材"], amount: 12400, payment: "credit" },
+    { name: "ENEOS セルフSS", items: ["レギュラーガソリン 45.2L"], amount: 7900, payment: "credit" },
   ],
   receipt_official: [
-    { name: "エコ産業株式会社", items: ["産業廃棄物処分費"], min: 15000, max: 180000, payment: "cash" },
-    { name: "首都高速道路", items: ["ETC利用料"], min: 1500, max: 8000, payment: "credit" },
+    { name: "エコ産業株式会社", items: ["産業廃棄物処分費"], amount: 88000, payment: "cash", confidence: "high" },
+    { name: "首都高速道路", items: ["ETC利用料"], amount: 3200, payment: "credit" },
   ],
   invoice: [
-    { name: "佐藤設備工業", items: ["給排水設備工事一式"], min: 200000, max: 950000, payment: "transfer" },
-    { name: "内装工房ナカムラ", items: ["クロス仕上げ工事", "床仕上げ工事"], min: 150000, max: 780000, payment: "invoice" },
-    { name: "山川電気", items: ["電気配線工事一式"], min: 80000, max: 450000, payment: "invoice" },
+    { name: "内装工房ナカムラ", items: ["クロス仕上げ工事", "床仕上げ工事"], amount: 484000, payment: "invoice", confidence: "high" },
+    { name: "佐藤設備工業", items: ["給排水設備工事一式"], amount: 583000, payment: "transfer", confidence: "high" },
+    { name: "山川電気", items: ["電気配線工事一式"], amount: 275000, payment: "invoice" },
   ],
   estimate: [
-    { name: "東京足場サービス", items: ["足場架設・解体工事"], min: 250000, max: 680000, payment: "transfer" },
+    { name: "東京足場サービス", items: ["足場架設・解体工事"], amount: 550000, payment: "transfer" },
   ],
   purchase_order: [
-    { name: "塗装テクノ", items: ["外壁塗装工事（手間請け）"], min: 300000, max: 900000, payment: "invoice" },
+    { name: "塗装テクノ", items: ["外壁塗装工事（手間請け）"], amount: 660000, payment: "invoice" },
   ],
   delivery_note: [
-    { name: "クリナップ", items: ["システムキッチン部材一式"], min: 180000, max: 620000, payment: "transfer" },
+    { name: "クリナップ", items: ["システムキッチン部材一式"], amount: 380000, payment: "transfer" },
   ],
   other: [
-    { name: "現場サプライ", items: ["消耗品各種"], min: 3000, max: 30000, payment: "cash" },
+    { name: "現場サプライ", items: ["消耗品各種"], amount: 16500, payment: "cash" },
   ],
 };
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+// 種別ごとの巡回カウンタ（同じ種別を続けて読み取ると次の取引先を返す）
+const pickCounters: Record<string, number> = {};
+
+function pick<T>(key: string, arr: T[]): T {
+  const idx = (pickCounters[key] = (pickCounters[key] ?? -1) + 1);
+  return arr[idx % arr.length];
 }
 
-/** モックのOCR結果を生成する（書類種別に応じた自然な内容） */
+/** モックのOCR結果を生成する（決定的・書類種別に応じた自然な内容） */
 export function mockOcrResult(hint?: DocumentType): OcrResult {
   const type: DocumentType = hint && DOC_TYPES.includes(hint) ? hint : "receipt";
   const vendors = MOCK_VENDORS[type] ?? MOCK_VENDORS.receipt;
-  const vendor = pick(vendors);
-  const total = Math.round((vendor.min + Math.random() * (vendor.max - vendor.min)) / 100) * 100;
+  const vendor = pick(type, vendors);
+  const total = vendor.amount;
   const tax = Math.round((total * 10) / 110);
 
-  const daysAgo = Math.floor(Math.random() * 3);
   const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
+  d.setDate(d.getDate() - 1);
   const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`;
@@ -169,7 +174,7 @@ export function mockOcrResult(hint?: DocumentType): OcrResult {
     items,
     paymentMethod: vendor.payment,
     registrationNumber: type === "invoice" ? "T9876543210987" : undefined,
-    confidence: "medium",
+    confidence: vendor.confidence ?? "medium",
     rawText: `${vendor.name}\n${items.map((i) => i.name).join("\n")}\n合計 ¥${total.toLocaleString("ja-JP")}`,
   };
 }

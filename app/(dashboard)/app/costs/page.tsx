@@ -19,7 +19,7 @@ import { FilterChips } from "@/components/shared/tabs";
 import { toast } from "@/components/shared/toast";
 import { COST_STATUSES, COST_TYPES, EXPENSE_CATEGORIES, PAYMENT_METHODS } from "@/lib/app/constants";
 import { formatDate, yen } from "@/lib/shared/format";
-import { removeCost, useDB } from "@/lib/app/store";
+import { removeCost, useDB } from "@/lib/app/data-store";
 import type { Cost, CostStatus, CostType } from "@/lib/app/types";
 import { cn } from "@/lib/shared/utils";
 

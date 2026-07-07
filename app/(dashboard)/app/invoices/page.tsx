@@ -16,7 +16,7 @@ import { FilterChips } from "@/components/shared/tabs";
 import { invoiceIsOverdue } from "@/lib/app/calc";
 import { INVOICE_STATUSES, OVERDUE_BADGE } from "@/lib/app/constants";
 import { formatDate, yen } from "@/lib/shared/format";
-import { useDB } from "@/lib/app/store";
+import { useDB } from "@/lib/app/data-store";
 import type { Invoice, InvoiceStatus } from "@/lib/app/types";
 
 type Filter = InvoiceStatus | "all" | "overdue";

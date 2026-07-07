@@ -9,7 +9,7 @@ import { Input } from "@/components/shared/input";
 import { Field } from "@/components/shared/label";
 import { toast } from "@/components/shared/toast";
 import { appPath } from "@/lib/app/routes";
-import { setSession, startDemoSession } from "@/lib/app/store";
+import { hydrateFromSupabase, setSession, startDemoSession } from "@/lib/app/data-store";
 import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
 import { appAuthUrl } from "@/lib/shared/urls";
 
@@ -36,6 +36,8 @@ export function LoginForm() {
       role: "owner",
       mode: "supabase",
     });
+    // 会社・プロフィールの確認（未作成なら自動作成）と案件の取得
+    void hydrateFromSupabase();
     router.push(appPath());
   };
 

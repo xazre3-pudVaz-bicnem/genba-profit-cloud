@@ -14,7 +14,7 @@ import { Textarea } from "@/components/shared/textarea";
 import { toast } from "@/components/shared/toast";
 import { INVOICE_STATUSES } from "@/lib/app/constants";
 import { dateFromToday, taxFromSubtotal, todayISO, yen } from "@/lib/shared/format";
-import { addInvoice, addRevenue, updateInvoice, useDB } from "@/lib/app/store";
+import { addInvoice, addRevenue, updateInvoice, useDB } from "@/lib/app/data-store";
 import type { InvoiceStatus, LineItem } from "@/lib/app/types";
 
 function InvoiceEditor() {

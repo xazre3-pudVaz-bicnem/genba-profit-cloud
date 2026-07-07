@@ -3,7 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/shared/logo";
-import { getSession, setSession, startDemoSession } from "@/lib/app/store";
+import {
+  getSession,
+  hydrateFromSupabase,
+  setSession,
+  startDemoSession,
+} from "@/lib/app/data-store";
 import { getSupabase } from "@/lib/app/supabase";
 import { AppHeader } from "./app-header";
 import { AppSidebar } from "./app-sidebar";
@@ -11,8 +16,9 @@ import { MobileBottomNav } from "./mobile-nav";
 
 /**
  * アプリ全体のシェル（LPとは完全分離）。
+ * - `?demo=true` は最優先で必ずデモモード（demoStore）で開く
  * - 認証チェック（デモセッション or Supabaseセッション）
- * - `?demo=true` で開かれた場合はデモセッションを自動開始
+ * - supabaseモードで入場したらDBからデータをhydrateする
  * - 未ログインなら /login へリダイレクト
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -23,37 +29,57 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function check() {
-      // 1. ローカルセッション（デモ or 前回ログイン）
-      if (getSession()) {
-        if (!cancelled) setReady(true);
-        return;
-      }
-      // 2. ?demo=true → デモセッションを自動開始（LPの「デモ管理画面を開く」導線）
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("demo") === "true") {
-        startDemoSession();
-        if (!cancelled) setReady(true);
-        return;
-      }
-      // 3. Supabaseセッション
-      const supabase = getSupabase();
-      if (supabase) {
-        const { data } = await supabase.auth.getSession();
-        if (data.session && !cancelled) {
-          setSession({
-            name:
-              (data.session.user.user_metadata?.name as string) ||
-              data.session.user.email ||
-              "ユーザー",
-            email: data.session.user.email ?? "",
-            role: "owner",
-            mode: "supabase",
-          });
-          setReady(true);
+      const wantsDemo =
+        new URLSearchParams(window.location.search).get("demo") === "true";
+
+      try {
+        // 1. ?demo=true → 必ずデモセッションで開く（既存のSupabaseセッションよりも優先）
+        if (wantsDemo) {
+          if (getSession()?.mode !== "demo") startDemoSession();
+          if (!cancelled) setReady(true);
           return;
         }
+        // 2. ローカルセッション（デモ or 前回ログイン）
+        const existing = getSession();
+        if (existing) {
+          if (existing.mode === "supabase") void hydrateFromSupabase();
+          if (!cancelled) setReady(true);
+          return;
+        }
+        // 3. Supabaseセッション（接続不良で固まらないよう4秒でタイムアウト）
+        const supabase = getSupabase();
+        if (supabase) {
+          const result = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+          ]);
+          const session = result && "data" in result ? result.data.session : null;
+          if (session && !cancelled) {
+            setSession({
+              name:
+                (session.user.user_metadata?.name as string) ||
+                session.user.email ||
+                "ユーザー",
+              email: session.user.email ?? "",
+              role: "owner",
+              mode: "supabase",
+            });
+            void hydrateFromSupabase();
+            setReady(true);
+            return;
+          }
+        }
+        if (!cancelled) router.replace("/login");
+      } catch {
+        // 想定外のエラーでも「読み込み中」のまま止めない
+        if (cancelled) return;
+        if (wantsDemo) {
+          startDemoSession();
+          setReady(true);
+        } else {
+          router.replace("/login");
+        }
       }
-      if (!cancelled) router.replace("/login");
     }
 
     void check();

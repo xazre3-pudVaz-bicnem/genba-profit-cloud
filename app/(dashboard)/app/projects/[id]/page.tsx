@@ -54,7 +54,7 @@ import {
   removeRevenue,
   updateProject,
   useDB,
-} from "@/lib/app/store";
+} from "@/lib/app/data-store";
 import type { Cost, CostType, ProjectStatus, Revenue } from "@/lib/app/types";
 import { cn } from "@/lib/shared/utils";
 

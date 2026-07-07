@@ -27,7 +27,7 @@ import { PageSkeleton } from "@/components/shared/skeleton";
 import { dashboardStats, invoiceIsOverdue, monthlySeries, projectFinance } from "@/lib/app/calc";
 import { DOCUMENT_STATUSES, DOCUMENT_TYPES, INVOICE_STATUSES, OVERDUE_BADGE } from "@/lib/app/constants";
 import { daysUntil, longDate, pct1, relativeDate, shortDate, yen } from "@/lib/shared/format";
-import { useDB } from "@/lib/app/store";
+import { useDB } from "@/lib/app/data-store";
 import { cn } from "@/lib/shared/utils";
 
 function Panel({
@@ -181,7 +181,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 今月の内訳・件数 */}
-      <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-6">
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard size="sm" label="今月の原価" value={yen(stats.monthCost)} />
         <StatCard size="sm" label="今月の発注費" value={yen(stats.monthOrder)} />
         <StatCard size="sm" label="今月の材料費" value={yen(stats.monthMaterial)} />

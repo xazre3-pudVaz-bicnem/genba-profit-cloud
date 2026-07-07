@@ -14,7 +14,7 @@ import { Textarea } from "@/components/shared/textarea";
 import { toast } from "@/components/shared/toast";
 import { ESTIMATE_STATUSES } from "@/lib/app/constants";
 import { dateFromToday, taxFromSubtotal, todayISO, yen } from "@/lib/shared/format";
-import { addEstimate, updateEstimate, useDB } from "@/lib/app/store";
+import { addEstimate, updateEstimate, useDB } from "@/lib/app/data-store";
 import type { EstimateStatus, LineItem } from "@/lib/app/types";
 
 function EstimateEditor() {
