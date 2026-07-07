@@ -108,6 +108,18 @@ export function replaceProjects(projects: Project[]) {
   commit({ ...cur, projects });
 }
 
+/** Supabaseから取得した売上でローカルキャッシュを置き換える（本番モード用） */
+export function replaceRevenues(revenues: Revenue[]) {
+  const cur = getDB();
+  commit({ ...cur, revenues });
+}
+
+/** Supabaseから取得した原価でローカルキャッシュを置き換える（本番モード用） */
+export function replaceCosts(costs: Cost[]) {
+  const cur = getDB();
+  commit({ ...cur, costs });
+}
+
 /** バックアップ用JSONエクスポート */
 export function exportDataJSON(): string {
   const { hydrated: _hydrated, ...rest } = getDB();

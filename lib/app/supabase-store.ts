@@ -1,10 +1,12 @@
 "use client";
 
 // ============================================================
-// Supabase同期ストア（現在は projects のみ移行済み）
+// Supabase同期ストア（projects / revenues / costs 移行済み）
 //
 // 方針: UIの応答性を保つため「ローカルキャッシュへ楽観反映 →
 // バックグラウンドでSupabaseへ書き込み」のwrite-through方式。
+// 書き込みは直列キューで実行し、案件作成→売上追加のような
+// 連続操作でも外部キー順序が崩れないようにする。
 // 失敗時はトーストで通知し、DBの実状態を再取得してUIを戻す。
 //
 // 取得(hydrateFromSupabase)は AppShell がアプリ入場時に呼ぶ。
@@ -13,9 +15,20 @@
 import { toast } from "@/components/shared/toast";
 import { uid } from "../shared/format";
 import * as local from "./store";
-import type { ProjectInput } from "./store";
+import type { CostInput, ProjectInput, RevenueInput } from "./store";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
-import type { Project, ProjectStatus } from "./types";
+import type {
+  Cost,
+  CostStatus,
+  CostType,
+  ExpenseCategory,
+  PaymentMethod,
+  Project,
+  ProjectStatus,
+  Revenue,
+  RevenueStatus,
+  TaxType,
+} from "./types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -180,8 +193,173 @@ function patchToRow(patch: Partial<ProjectInput>): Record<string, unknown> {
   return row;
 }
 
+// 書類は未移行（ローカル管理）のため、document_id はUUIDのときだけDBへ送る
+function docIdOrNull(documentId: string | null | undefined): string | null {
+  return documentId && UUID_RE.test(documentId) ? documentId : null;
+}
+
+interface RevenueRow {
+  id: string;
+  project_id: string;
+  title: string;
+  amount: number;
+  tax_type: TaxType;
+  tax_amount: number;
+  billing_due_date: string | null;
+  billed_date: string | null;
+  payment_due_date: string | null;
+  paid_date: string | null;
+  status: RevenueStatus;
+  memo: string | null;
+  document_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToRevenue(row: RevenueRow): Revenue {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    title: row.title,
+    amount: row.amount,
+    taxType: row.tax_type,
+    taxAmount: row.tax_amount,
+    billingDueDate: row.billing_due_date,
+    billedDate: row.billed_date,
+    paymentDueDate: row.payment_due_date,
+    paidDate: row.paid_date,
+    status: row.status,
+    memo: row.memo ?? "",
+    documentId: row.document_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function revenueToRow(revenue: Revenue, company: string): Record<string, unknown> {
+  return {
+    id: revenue.id,
+    company_id: company,
+    project_id: revenue.projectId,
+    title: revenue.title,
+    amount: revenue.amount,
+    tax_type: revenue.taxType,
+    tax_amount: revenue.taxAmount,
+    billing_due_date: revenue.billingDueDate,
+    billed_date: revenue.billedDate,
+    payment_due_date: revenue.paymentDueDate,
+    paid_date: revenue.paidDate,
+    status: revenue.status,
+    memo: revenue.memo,
+    document_id: docIdOrNull(revenue.documentId),
+  };
+}
+
+function revenuePatchToRow(patch: Partial<RevenueInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.projectId !== undefined) row.project_id = patch.projectId;
+  if (patch.title !== undefined) row.title = patch.title;
+  if (patch.amount !== undefined) row.amount = patch.amount;
+  if (patch.taxType !== undefined) row.tax_type = patch.taxType;
+  if (patch.taxAmount !== undefined) row.tax_amount = patch.taxAmount;
+  if (patch.billingDueDate !== undefined) row.billing_due_date = patch.billingDueDate;
+  if (patch.billedDate !== undefined) row.billed_date = patch.billedDate;
+  if (patch.paymentDueDate !== undefined) row.payment_due_date = patch.paymentDueDate;
+  if (patch.paidDate !== undefined) row.paid_date = patch.paidDate;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.memo !== undefined) row.memo = patch.memo;
+  if (patch.documentId !== undefined) row.document_id = docIdOrNull(patch.documentId);
+  return row;
+}
+
+interface CostRow {
+  id: string;
+  project_id: string;
+  type: CostType;
+  vendor_name: string | null;
+  title: string | null;
+  category: ExpenseCategory | null;
+  amount: number;
+  tax_type: TaxType;
+  tax_amount: number;
+  payment_method: PaymentMethod | null;
+  purchase_date: string | null;
+  payment_due_date: string | null;
+  paid_date: string | null;
+  status: CostStatus;
+  memo: string | null;
+  document_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToCost(row: CostRow): Cost {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    type: row.type,
+    vendorName: row.vendor_name ?? "",
+    title: row.title ?? "",
+    category: row.category,
+    amount: row.amount,
+    taxType: row.tax_type,
+    taxAmount: row.tax_amount,
+    paymentMethod: row.payment_method,
+    purchaseDate: row.purchase_date,
+    paymentDueDate: row.payment_due_date,
+    paidDate: row.paid_date,
+    status: row.status,
+    memo: row.memo ?? "",
+    documentId: row.document_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function costToRow(cost: Cost, company: string): Record<string, unknown> {
+  return {
+    id: cost.id,
+    company_id: company,
+    project_id: cost.projectId,
+    type: cost.type,
+    vendor_name: cost.vendorName,
+    title: cost.title,
+    category: cost.category,
+    amount: cost.amount,
+    tax_type: cost.taxType,
+    tax_amount: cost.taxAmount,
+    payment_method: cost.paymentMethod,
+    purchase_date: cost.purchaseDate,
+    payment_due_date: cost.paymentDueDate,
+    paid_date: cost.paidDate,
+    status: cost.status,
+    memo: cost.memo,
+    document_id: docIdOrNull(cost.documentId),
+  };
+}
+
+function costPatchToRow(patch: Partial<CostInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.projectId !== undefined) row.project_id = patch.projectId;
+  if (patch.type !== undefined) row.type = patch.type;
+  if (patch.vendorName !== undefined) row.vendor_name = patch.vendorName;
+  if (patch.title !== undefined) row.title = patch.title;
+  if (patch.category !== undefined) row.category = patch.category;
+  if (patch.amount !== undefined) row.amount = patch.amount;
+  if (patch.taxType !== undefined) row.tax_type = patch.taxType;
+  if (patch.taxAmount !== undefined) row.tax_amount = patch.taxAmount;
+  if (patch.paymentMethod !== undefined) row.payment_method = patch.paymentMethod;
+  if (patch.purchaseDate !== undefined) row.purchase_date = patch.purchaseDate;
+  if (patch.paymentDueDate !== undefined) row.payment_due_date = patch.paymentDueDate;
+  if (patch.paidDate !== undefined) row.paid_date = patch.paidDate;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.memo !== undefined) row.memo = patch.memo;
+  if (patch.documentId !== undefined) row.document_id = docIdOrNull(patch.documentId);
+  return row;
+}
+
 // ------------------------------------------------------------
-// 取得（案件一覧・詳細はローカルキャッシュ経由で参照される）
+// 取得（一覧・詳細・ダッシュボードはローカルキャッシュ経由で参照される）
 // ------------------------------------------------------------
 
 async function refetchProjects(): Promise<void> {
@@ -197,6 +375,32 @@ async function refetchProjects(): Promise<void> {
   local.replaceProjects((data as ProjectRow[]).map(rowToProject));
 }
 
+async function refetchRevenues(): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { data, error } = await sb
+    .from("revenues")
+    .select(
+      "id,project_id,title,amount,tax_type,tax_amount,billing_due_date,billed_date,payment_due_date,paid_date,status,memo,document_id,created_at,updated_at"
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  local.replaceRevenues((data as RevenueRow[]).map(rowToRevenue));
+}
+
+async function refetchCosts(): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { data, error } = await sb
+    .from("costs")
+    .select(
+      "id,project_id,type,vendor_name,title,category,amount,tax_type,tax_amount,payment_method,purchase_date,payment_due_date,paid_date,status,memo,document_id,created_at,updated_at"
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  local.replaceCosts((data as CostRow[]).map(rowToCost));
+}
+
 let hydrating = false;
 
 /**
@@ -210,7 +414,7 @@ export async function hydrateFromSupabase(): Promise<void> {
   hydrating = true;
   try {
     await ensureCompanyId();
-    await refetchProjects();
+    await Promise.all([refetchProjects(), refetchRevenues(), refetchCosts()]);
   } catch (err) {
     notifySyncError("データの取得", err);
   } finally {
@@ -220,47 +424,171 @@ export async function hydrateFromSupabase(): Promise<void> {
 
 // ------------------------------------------------------------
 // 書き込み（楽観反映 → バックグラウンド同期）
+// 直列キューで実行順を保証する（例: 案件作成→直後の売上追加で
+// project_id 外部キーが先に存在している必要がある）
 // ------------------------------------------------------------
 
-function syncInBackground(action: string, fn: () => Promise<void>) {
-  void fn().catch((err) => {
-    notifySyncError(action, err);
-    // DBの実状態に合わせてUIを戻す
-    void refetchProjects().catch(() => {});
+let syncQueue: Promise<void> = Promise.resolve();
+
+function syncInBackground(action: string, fn: () => Promise<void>, rollback: () => Promise<void>) {
+  syncQueue = syncQueue.then(async () => {
+    try {
+      await fn();
+    } catch (err) {
+      notifySyncError(action, err);
+      // DBの実状態に合わせてUIを戻す
+      await rollback().catch(() => {});
+    }
   });
 }
 
+async function requireCompanyId(): Promise<string> {
+  const company = await ensureCompanyId();
+  if (!company) throw new Error("会社情報を取得できませんでした（再ログインをお試しください）");
+  return company;
+}
+
+// ---------- 案件 ----------
+
 export function spAddProject(input: ProjectInput): Project {
   const project = local.addProject(input);
-  syncInBackground("案件の作成", async () => {
-    const sb = getSupabase();
-    if (!sb) return;
-    const company = await ensureCompanyId();
-    if (!company) throw new Error("会社情報を取得できませんでした（再ログインをお試しください）");
-    const { error } = await sb.from("projects").insert(projectToRow(project, company));
-    if (error) throw error;
-  });
+  syncInBackground(
+    "案件の作成",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      const company = await requireCompanyId();
+      const { error } = await sb.from("projects").insert(projectToRow(project, company));
+      if (error) throw error;
+    },
+    refetchProjects
+  );
   return project;
 }
 
 export function spUpdateProject(id: string, patch: Partial<ProjectInput>): void {
   local.updateProject(id, patch);
-  syncInBackground("案件の更新", async () => {
-    const sb = getSupabase();
-    if (!sb) return;
-    await ensureCompanyId();
-    const { error } = await sb.from("projects").update(patchToRow(patch)).eq("id", id);
-    if (error) throw error;
-  });
+  syncInBackground(
+    "案件の更新",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const { error } = await sb.from("projects").update(patchToRow(patch)).eq("id", id);
+      if (error) throw error;
+    },
+    refetchProjects
+  );
 }
 
 export function spRemoveProject(id: string): void {
+  // ローカル同様、DB側も外部キーのcascadeで売上・原価が削除される
   local.removeProject(id);
-  syncInBackground("案件の削除", async () => {
-    const sb = getSupabase();
-    if (!sb) return;
-    await ensureCompanyId();
-    const { error } = await sb.from("projects").delete().eq("id", id);
-    if (error) throw error;
-  });
+  syncInBackground(
+    "案件の削除",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const { error } = await sb.from("projects").delete().eq("id", id);
+      if (error) throw error;
+    },
+    refetchProjects
+  );
+}
+
+// ---------- 売上 ----------
+
+export function spAddRevenue(input: RevenueInput): Revenue {
+  const revenue = local.addRevenue(input);
+  syncInBackground(
+    "売上の作成",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      const company = await requireCompanyId();
+      const { error } = await sb.from("revenues").insert(revenueToRow(revenue, company));
+      if (error) throw error;
+    },
+    refetchRevenues
+  );
+  return revenue;
+}
+
+export function spUpdateRevenue(id: string, patch: Partial<RevenueInput>): void {
+  local.updateRevenue(id, patch);
+  syncInBackground(
+    "売上の更新",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const { error } = await sb.from("revenues").update(revenuePatchToRow(patch)).eq("id", id);
+      if (error) throw error;
+    },
+    refetchRevenues
+  );
+}
+
+export function spRemoveRevenue(id: string): void {
+  local.removeRevenue(id);
+  syncInBackground(
+    "売上の削除",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const { error } = await sb.from("revenues").delete().eq("id", id);
+      if (error) throw error;
+    },
+    refetchRevenues
+  );
+}
+
+// ---------- 原価（発注費・材料費・経費） ----------
+
+export function spAddCost(input: CostInput): Cost {
+  const cost = local.addCost(input);
+  syncInBackground(
+    "原価の登録",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      const company = await requireCompanyId();
+      const { error } = await sb.from("costs").insert(costToRow(cost, company));
+      if (error) throw error;
+    },
+    refetchCosts
+  );
+  return cost;
+}
+
+export function spUpdateCost(id: string, patch: Partial<CostInput>): void {
+  local.updateCost(id, patch);
+  syncInBackground(
+    "原価の更新",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const { error } = await sb.from("costs").update(costPatchToRow(patch)).eq("id", id);
+      if (error) throw error;
+    },
+    refetchCosts
+  );
+}
+
+export function spRemoveCost(id: string): void {
+  local.removeCost(id);
+  syncInBackground(
+    "原価の削除",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const { error } = await sb.from("costs").delete().eq("id", id);
+      if (error) throw error;
+    },
+    refetchCosts
+  );
 }

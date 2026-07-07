@@ -6,7 +6,7 @@
 // UI（ページ・コンポーネント）は必ずこのモジュールを経由して
 // データを操作する。実装は DataStore インターフェースで統一し、
 //   - demoStore     : localStorage実装（デモモード / Supabase未設定時）
-//   - supabaseStore : Supabase実装（★projects移行済み。他はローカル動作）
+//   - supabaseStore : Supabase実装（★projects/revenues/costs移行済み）
 // を getDataStore() が毎回の呼び出し時に選択する。
 //
 // 切替ルール:
@@ -15,14 +15,24 @@
 //   ※ /app?demo=true はデモセッションになるため常に demoStore
 //
 // 移行状況:
-//   [済] projects（一覧取得・作成・編集・削除・詳細）
-//   [未] revenues / costs / documents / estimates / invoices / members / company
+//   [済] projects / revenues / costs（一覧取得・作成・編集・削除・詳細）
+//   [未] documents / estimates / invoices / members / company
 //        → lib/app/supabase-store.ts に sp〇〇 を追加し、下の supabaseStore に
 //          割り当てるだけで順次移行できる
 // ============================================================
 
 import * as demo from "./store";
-import { spAddProject, spRemoveProject, spUpdateProject } from "./supabase-store";
+import {
+  spAddCost,
+  spAddProject,
+  spAddRevenue,
+  spRemoveCost,
+  spRemoveProject,
+  spRemoveRevenue,
+  spUpdateCost,
+  spUpdateProject,
+  spUpdateRevenue,
+} from "./supabase-store";
 import { isSupabaseConfigured } from "./supabase";
 import type {
   Company,
@@ -102,14 +112,20 @@ export const demoStore: DataStore = {
 
 /**
  * Supabase実装。
- * projects はDBへwrite-through同期、未移行のエンティティは
- * ローカルキャッシュ（live名前空間）で動作する。
+ * projects / revenues / costs はDBへwrite-through同期、
+ * 未移行のエンティティはローカルキャッシュ（live名前空間）で動作する。
  */
 export const supabaseStore: DataStore = {
   ...demoStore,
   addProject: spAddProject,
   updateProject: spUpdateProject,
   removeProject: spRemoveProject,
+  addRevenue: spAddRevenue,
+  updateRevenue: spUpdateRevenue,
+  removeRevenue: spRemoveRevenue,
+  addCost: spAddCost,
+  updateCost: spUpdateCost,
+  removeCost: spRemoveCost,
 };
 
 /**
