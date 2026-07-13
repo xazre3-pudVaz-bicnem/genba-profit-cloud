@@ -1,5 +1,5 @@
 import { PROFIT_GOOD_RATE, PROFIT_WARN_RATE } from "./constants";
-import { currentMonthKey, isOverdue, monthKey } from "../shared/format";
+import { currentMonthKey, isOverdue, localDateOf, monthKey } from "../shared/format";
 import type { Cost, DB, DocumentRec, Invoice, Project, Revenue } from "./types";
 
 // ============================================================
@@ -97,11 +97,11 @@ function sum(values: number[]): number {
 // ------------------------------------------------------------
 
 export function revenueAccrualDate(r: Revenue): string {
-  return r.billedDate || r.paidDate || r.billingDueDate || r.createdAt.slice(0, 10);
+  return r.billedDate || r.paidDate || r.billingDueDate || localDateOf(r.createdAt);
 }
 
 export function costAccrualDate(c: Cost): string {
-  return c.purchaseDate || c.paidDate || c.paymentDueDate || c.createdAt.slice(0, 10);
+  return c.purchaseDate || c.paidDate || c.paymentDueDate || localDateOf(c.createdAt);
 }
 
 /** 請求書の期限超過判定（請求済かつ支払期限を過ぎている） */
@@ -211,25 +211,31 @@ export function monthSummary(db: DB, month: string): MonthSummary {
 
 /**
  * 対象月に関係する案件を返す。
- * 収支の計上月・工期（開始〜完了/完了予定）・作成月のいずれかが一致するもの。
+ * 開始・完了予定・実完了・作成のいずれかの月が一致するもの、
+ * 工期（開始月〜完了/完了予定月）が対象月にかかっているもの、
+ * または収支の計上月が一致するもの。
  */
 export function projectsForMonth(db: DB, month: string): Project[] {
+  // 収支の計上月を案件ごとに1パスで集計（案件×収支の全走査を避ける）
+  const accrualMonths = new Map<string, Set<string>>();
+  const record = (projectId: string, m: string) => {
+    const set = accrualMonths.get(projectId) ?? new Set<string>();
+    set.add(m);
+    accrualMonths.set(projectId, set);
+  };
+  for (const r of db.revenues) record(r.projectId, monthKey(revenueAccrualDate(r)));
+  for (const c of db.costs) record(c.projectId, monthKey(costAccrualDate(c)));
+
   return db.projects.filter((p) => {
-    if (monthKey(p.createdAt) === month) return true;
+    // いずれかの日付の月が一致
+    const anchors = [localDateOf(p.createdAt), p.startDate, p.dueDate, p.completedDate];
+    if (anchors.some((d) => d && monthKey(d) === month)) return true;
+    // 工期が対象月にかかっている
     const start = p.startDate ? monthKey(p.startDate) : null;
-    const end = p.completedDate
-      ? monthKey(p.completedDate)
-      : p.dueDate
-        ? monthKey(p.dueDate)
-        : start;
-    if (start && start <= month && (end === null || month <= end)) return true;
-    if (db.revenues.some((r) => r.projectId === p.id && monthKey(revenueAccrualDate(r)) === month)) {
-      return true;
-    }
-    if (db.costs.some((c) => c.projectId === p.id && monthKey(costAccrualDate(c)) === month)) {
-      return true;
-    }
-    return false;
+    const end = p.completedDate ? monthKey(p.completedDate) : p.dueDate ? monthKey(p.dueDate) : null;
+    if (start && end && start <= month && month <= end) return true;
+    // 収支の計上月が一致
+    return accrualMonths.get(p.id)?.has(month) ?? false;
   });
 }
 

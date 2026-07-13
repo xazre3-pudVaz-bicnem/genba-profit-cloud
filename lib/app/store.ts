@@ -459,6 +459,15 @@ export function setSession(next: Session | null) {
     } catch {
       // ignore
     }
+    // 本番モードからのログアウト時は、会社データのローカルキャッシュも消す
+    // （共有端末で次のログインユーザーに前の会社のデータが見えないように）
+    if (next === null && prevMode === "supabase") {
+      try {
+        localStorage.removeItem(LIVE_DB_KEY);
+      } catch {
+        // ignore
+      }
+    }
   }
   // モードが変わったらDBキャッシュを読み直す（demo⇔live名前空間の切替）
   if ((next?.mode ?? null) !== prevMode) {

@@ -10,6 +10,7 @@ import {
   startDemoSession,
 } from "@/lib/app/data-store";
 import { getSupabase } from "@/lib/app/supabase";
+import type { Role } from "@/lib/app/types";
 import { AppHeader } from "./app-header";
 import { AppSidebar } from "./app-sidebar";
 import { MobileBottomNav } from "./mobile-nav";
@@ -55,13 +56,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ]);
           const session = result && "data" in result ? result.data.session : null;
           if (session && !cancelled) {
+            // 実ロールを先に取得（staff/viewerに管理UIを一瞬でも見せない）。
+            // 取得失敗時はownerで開始し、hydrateFromSupabaseが後追いで補正する
+            let role: Role = "owner";
+            try {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("role")
+                .eq("id", session.user.id)
+                .maybeSingle();
+              if (profile?.role) role = profile.role as Role;
+            } catch {
+              // ignore
+            }
             setSession({
               name:
                 (session.user.user_metadata?.name as string) ||
                 session.user.email ||
                 "ユーザー",
               email: session.user.email ?? "",
-              role: "owner",
+              role,
               mode: "supabase",
             });
             void hydrateFromSupabase();

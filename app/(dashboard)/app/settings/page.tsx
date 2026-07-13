@@ -27,14 +27,14 @@ import { APP_NAME } from "@/lib/shared/config";
 import {
   exportDataJSON,
   resetDemoData,
-  setSession,
+  signOutEverywhere,
   updateCompany,
   uploadCompanyLogo,
   useDB,
   useSession,
 } from "@/lib/app/data-store";
 import { canManageCompany } from "@/lib/app/permissions";
-import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
+import { isSupabaseConfigured } from "@/lib/app/supabase";
 import { marketingUrl } from "@/lib/urls";
 import { LOGO_ACCEPT, validateLogoFile } from "@/lib/app/upload";
 import { useCompanyLogoUrl } from "@/components/app/print-doc";
@@ -248,15 +248,7 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={async () => {
-            const supabase = getSupabase();
-            if (supabase) {
-              try {
-                await supabase.auth.signOut();
-              } catch {
-                // ignore
-              }
-            }
-            setSession(null);
+            await signOutEverywhere();
             router.replace(marketingUrl("/"));
           }}
           className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200/80 bg-white p-5 text-left shadow-card transition-all hover:border-red-200 hover:bg-red-50/40 cursor-pointer"

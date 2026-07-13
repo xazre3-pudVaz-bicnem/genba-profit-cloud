@@ -20,7 +20,6 @@ import { CostForm } from "@/components/app/cost-form";
 import { DocThumb } from "@/components/app/doc-thumb";
 import { CurrencyText } from "@/components/shared/currency-text";
 import { PageContainer, AppPageHeader } from "@/components/app/app-page-header";
-import { ProfitBadge } from "@/components/app/profit-badge";
 import { ProjectForm } from "@/components/app/project-form";
 import { RevenueForm } from "@/components/app/revenue-form";
 import { StatusBadge } from "@/components/app/status-badge";

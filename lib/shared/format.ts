@@ -78,6 +78,21 @@ export function monthKey(iso: string): string {
   return iso.slice(0, 7);
 }
 
+/**
+ * ISOタイムスタンプを端末ローカルの "YYYY-MM-DD" へ変換する。
+ * createdAt（UTC）を月集計に使うと月初の未明分が前月へ計上されるため、
+ * タイムスタンプをフォールバックに使う箇所では必ずこれを通す。
+ * date-only文字列（"YYYY-MM-DD"）はそのまま返す。
+ */
+export function localDateOf(iso: string): string {
+  if (iso.length <= 10) return iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
 /** "2026年7月" */
 export function monthLabel(key: string): string {
   const [y, m] = key.split("-");

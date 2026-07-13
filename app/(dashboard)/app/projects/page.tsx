@@ -17,7 +17,15 @@ import {
 } from "@/lib/app/calc";
 import { PROJECT_STATUSES } from "@/lib/app/constants";
 import { useDB } from "@/lib/app/data-store";
-import { currentMonthKey, monthKey, monthLabel, pct1, shiftMonthKey, yen } from "@/lib/shared/format";
+import {
+  currentMonthKey,
+  localDateOf,
+  monthKey,
+  monthLabel,
+  pct1,
+  shiftMonthKey,
+  yen,
+} from "@/lib/shared/format";
 import { cn } from "@/lib/shared/utils";
 
 // ============================================================
@@ -67,7 +75,7 @@ export default function ProjectsPage() {
   const monthsWithData = new Set<string>();
   for (const r of db.revenues) monthsWithData.add(monthKey(revenueAccrualDate(r)));
   for (const c of db.costs) monthsWithData.add(monthKey(costAccrualDate(c)));
-  for (const p of db.projects) monthsWithData.add(monthKey(p.createdAt));
+  for (const p of db.projects) monthsWithData.add(monthKey(localDateOf(p.createdAt)));
 
   return (
     <PageContainer>
@@ -253,7 +261,7 @@ export default function ProjectsPage() {
                         <p
                           className={cn(
                             "tnum text-[13px] font-bold lg:text-right",
-                            fin.isDeficit
+                            fin.profit < 0
                               ? "text-red-600"
                               : fin.isGoodProfit
                                 ? "text-emerald-600"

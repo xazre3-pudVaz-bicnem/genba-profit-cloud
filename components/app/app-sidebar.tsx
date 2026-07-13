@@ -46,10 +46,8 @@ export function AppSidebar() {
         <Link
           href={UPLOAD_HREF}
           className={cn(
-            "flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] font-bold shadow-sm transition-all",
-            uploadActive
-              ? "bg-brand-600 text-white shadow-brand-600/25"
-              : "bg-brand-600 text-white shadow-brand-600/25 hover:bg-brand-700"
+            "flex items-center gap-3 rounded-xl bg-brand-600 px-4 py-3.5 text-[15px] font-bold text-white shadow-sm shadow-brand-600/25 transition-all hover:bg-brand-700",
+            uploadActive && "ring-2 ring-brand-300 ring-offset-2"
           )}
         >
           <Camera className="h-5 w-5" />

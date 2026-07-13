@@ -11,6 +11,7 @@ import { toast } from "@/components/shared/toast";
 import { appPath } from "@/lib/app/routes";
 import { hydrateFromSupabase, setSession, startDemoSession } from "@/lib/app/data-store";
 import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
+import type { Role } from "@/lib/app/types";
 import { signupUrl } from "@/lib/urls";
 
 export function LoginForm() {
@@ -25,15 +26,29 @@ export function LoginForm() {
     if (!supabase) return;
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
     if (error || !data.session) {
+      setLoading(false);
       toast({ title: "ログインに失敗しました", description: error?.message, variant: "error" });
       return;
     }
+    // 実ロールを先に取得（staff/viewerに管理UIを一瞬でも見せない）。
+    // 取得失敗時はownerで開始し、hydrateFromSupabaseが後追いで補正する
+    let role: Role = "owner";
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.session.user.id)
+        .maybeSingle();
+      if (profile?.role) role = profile.role as Role;
+    } catch {
+      // ignore
+    }
+    setLoading(false);
     setSession({
       name: (data.session.user.user_metadata?.name as string) || email,
       email,
-      role: "owner",
+      role,
       mode: "supabase",
     });
     // 会社・プロフィールの確認（未作成なら自動作成）と案件の取得

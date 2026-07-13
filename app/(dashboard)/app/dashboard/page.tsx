@@ -218,13 +218,13 @@ export default function DashboardPage() {
           label="進行中案件"
           value={`${stats.activeProjectCount}件`}
           icon={FolderKanban}
-          href="/app/projects?status=in_progress"
+          href="/app/projects"
         />
         <StatCard
           size="sm"
           label="完了案件"
           value={`${stats.completedProjectCount}件`}
-          href="/app/projects?status=completed"
+          href="/app/projects"
         />
         <StatCard
           size="sm"
@@ -232,7 +232,7 @@ export default function DashboardPage() {
           value={`${stats.deficitProjectCount}件`}
           icon={CircleAlert}
           tone={stats.deficitProjectCount > 0 ? "danger" : "default"}
-          href="/app/projects?filter=deficit"
+          href="/app/projects"
         />
         <StatCard
           size="sm"
@@ -240,7 +240,7 @@ export default function DashboardPage() {
           value={`${stats.lowProfitProjectCount}件`}
           icon={AlertTriangle}
           tone={stats.lowProfitProjectCount > 0 ? "warning" : "default"}
-          href="/app/projects?filter=low_profit"
+          href="/app/projects"
         />
       </div>
 
@@ -285,7 +285,7 @@ export default function DashboardPage() {
       <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Panel
           title="利益率が低い案件"
-          moreHref="/app/projects?filter=low_profit"
+          moreHref="/app/projects"
           isEmpty={lowProfitProjects.length === 0}
           emptyText="利益率が低い案件はありません"
         >

@@ -47,8 +47,9 @@ import {
   spUpdateRevenue,
   spUploadCompanyLogo,
   spUploadDocumentFile,
+  resetSupabaseCaches,
 } from "./supabase-store";
-import { isSupabaseConfigured } from "./supabase";
+import { getSupabase, isSupabaseConfigured } from "./supabase";
 import type {
   Company,
   Cost,
@@ -197,6 +198,24 @@ export async function uploadCompanyLogo(file: File): Promise<string | null> {
     return spUploadCompanyLogo(file);
   }
   return null;
+}
+
+/**
+ * ログアウト（全画面共通）。
+ * Supabaseセッションの破棄・会社ID等のメモリキャッシュ破棄・
+ * ローカルセッション削除（本番モードならliveキャッシュも削除）まで行う。
+ */
+export async function signOutEverywhere(): Promise<void> {
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.auth.signOut();
+    } catch {
+      // ignore
+    }
+  }
+  resetSupabaseCaches();
+  demo.setSession(null);
 }
 
 // ------------------------------------------------------------

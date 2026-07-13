@@ -39,6 +39,7 @@ import {
   addDocument,
   addRevenue,
   getDB,
+  removeDocument,
   updateDocument,
   uploadDocumentFile,
   useDB,
@@ -143,6 +144,7 @@ function UploadContent() {
   const stepIndex = STEP_LABELS.findIndex((s) => s.key === step);
 
   const handleFile = (f: File) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(f);
     setPreviewUrl(URL.createObjectURL(f));
     setStep("type");
@@ -151,6 +153,7 @@ function UploadContent() {
   const startAnalyze = async () => {
     if (!file) return;
     setStep("analyzing");
+    try {
     setTaxTouched(false);
     analyzeProjectRef.current = selectedProject;
 
@@ -222,9 +225,11 @@ function UploadContent() {
     const ocrFailed = isLive && result.provider === "mock";
     const r = result.result;
     if (ocrFailed) {
+      // 本番モードではサンプル値を出さないため、通知文も必ず手入力の案内に統一する
+      // （サーバーの「サンプル表示中」noticeをそのまま出すと空フォームと矛盾する）
       setOutcome({
         ...result,
-        notice: result.notice ?? "AI読み取りに失敗しました。内容を手入力して登録できます。",
+        notice: "AIによる読み取りができませんでした。内容を手入力して登録できます。",
       });
       setForm({
         docType,
@@ -253,6 +258,9 @@ function UploadContent() {
         target: r.suggestedTarget ?? DEFAULT_TARGET[r.documentType || docType],
         category: r.suggestedCategory ?? "site_misc",
       });
+      // OCRが実際の税額を読み取れた場合は保護する
+      // （軽減税率8%等を、金額編集時の10%自動計算で上書きしない）
+      setTaxTouched(Boolean(r.taxAmount));
       // 読み取り結果を書類レコードへ保存（確認待ち）。サーバー側でも保存済みだが、
       // ローカルキャッシュと直列書き込みキューの整合はこちらが担保する
       updateDocument(docId, {
@@ -268,6 +276,16 @@ function UploadContent() {
       });
     }
     setStep("confirm");
+    } catch (err) {
+      // 予期しないエラーでも「AI読取中」のまま固まらせない
+      console.error("[upload] 解析処理でエラー:", err);
+      toast({
+        title: "処理中にエラーが発生しました",
+        description: "もう一度お試しください。読み取れない場合も手入力で登録できます",
+        variant: "error",
+      });
+      setStep("type");
+    }
   };
 
   const save = async () => {
@@ -362,6 +380,13 @@ function UploadContent() {
   };
 
   const reset = () => {
+    // 保存せずに撮り直す場合は、解析時に作った「確認待ち」の書類レコードも
+    // 削除する（撮り直すたびにゴミ書類が一覧へ溜まらないように）。
+    // 保存完了後（doneから「続けて登録」）は登録済みのため削除しない
+    if (docIdRef.current && step !== "done") {
+      removeDocument(docIdRef.current);
+    }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setStep("pick");
     setFile(null);
     setPreviewUrl(null);

@@ -6,21 +6,8 @@ import { useRouter } from "next/navigation";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/shared/button";
 import { appPath } from "@/lib/app/routes";
-import { setSession, useDB, useSession } from "@/lib/app/data-store";
-import { getSupabase } from "@/lib/app/supabase";
+import { signOutEverywhere, useDB, useSession } from "@/lib/app/data-store";
 import { marketingUrl, signupUrl } from "@/lib/urls";
-
-async function signOutEverywhere() {
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      await supabase.auth.signOut();
-    } catch {
-      // ignore
-    }
-  }
-  setSession(null);
-}
 
 /** アプリ専用ヘッダー（デモモード表示・クイック操作・ユーザーメニュー） */
 export function AppHeader() {

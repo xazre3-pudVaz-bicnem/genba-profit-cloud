@@ -197,6 +197,18 @@ export function getCurrentCompany(): Company {
   return local.getDB().company;
 }
 
+/**
+ * ログアウト時にモジュール内キャッシュを破棄する。
+ * これを忘れると、同一タブで別アカウントにログインし直したとき
+ * 前のユーザーの会社ID・プロフィール・署名URLが使い回されてしまう。
+ */
+export function resetSupabaseCaches(): void {
+  companyId = null;
+  userId = null;
+  currentProfile = null;
+  signedUrlCache.clear();
+}
+
 // ------------------------------------------------------------
 // 行 ⇔ ドメイン型のマッピング（snake_case ⇔ camelCase）
 // ------------------------------------------------------------
@@ -983,7 +995,9 @@ export async function spUploadDocumentFile(file: File, projectId: string | null)
   return path;
 }
 
-// 署名URLキャッシュ（発行は60分・キャッシュは50分で更新）
+// 署名URLキャッシュ（発行は24時間・キャッシュは23時間で更新）
+// 画面を長時間開きっぱなしでも<img>が失効403にならないよう長めに発行する
+const SIGNED_URL_TTL_SEC = 24 * 60 * 60;
 const signedUrlCache = new Map<string, { url: string; expires: number }>();
 
 /**
@@ -997,9 +1011,14 @@ export async function getDocumentSignedUrl(fileUrl: string | null): Promise<stri
   if (cached && cached.expires > Date.now()) return cached.url;
   const sb = getSupabase();
   if (!sb) return null;
-  const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).createSignedUrl(fileUrl, 3600);
+  const { data, error } = await sb.storage
+    .from(DOCUMENTS_BUCKET)
+    .createSignedUrl(fileUrl, SIGNED_URL_TTL_SEC);
   if (error || !data?.signedUrl) return null;
-  signedUrlCache.set(fileUrl, { url: data.signedUrl, expires: Date.now() + 50 * 60 * 1000 });
+  signedUrlCache.set(fileUrl, {
+    url: data.signedUrl,
+    expires: Date.now() + (SIGNED_URL_TTL_SEC - 60 * 60) * 1000,
+  });
   return data.signedUrl;
 }
 
