@@ -3,7 +3,6 @@
 import {
   AlertTriangle,
   Camera,
-  FileSpreadsheet,
   FileText,
   Files,
   FolderX,
@@ -106,7 +105,11 @@ function ProjectDetailContent() {
   const router = useRouter();
   const db = useDB();
 
-  const [tab, setTab] = useState(searchParams.get("tab") ?? "overview");
+  // タブは3つ（収支 / 写真・書類 / メモ）。旧タブ名のURLは収支タブへ寄せる
+  const legacyTab = searchParams.get("tab");
+  const [tab, setTab] = useState(
+    legacyTab === "documents" ? "documents" : legacyTab === "memo" ? "memo" : "finance"
+  );
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [revenueForm, setRevenueForm] = useState<{ open: boolean; editing: Revenue | null }>({ open: false, editing: null });
@@ -153,14 +156,8 @@ function ProjectDetailContent() {
   const invoices = db.invoices.filter((i) => i.projectId === project.id);
 
   const tabs = [
-    { value: "overview", label: "概要" },
-    { value: "revenue", label: "売上", count: revenues.length },
-    { value: "order", label: "発注費", count: costsOf("order").length },
-    { value: "material", label: "材料費", count: costsOf("material").length },
-    { value: "expense", label: "経費", count: costsOf("expense").length },
-    { value: "documents", label: "書類", count: documents.length },
-    { value: "estimates", label: "見積", count: estimates.length },
-    { value: "invoices", label: "請求", count: invoices.length },
+    { value: "finance", label: "収支" },
+    { value: "documents", label: "写真・書類", count: documents.length },
     { value: "memo", label: "メモ" },
   ];
 
@@ -178,7 +175,7 @@ function ProjectDetailContent() {
           action={
             <Button size="sm" onClick={() => openCostForm(type)}>
               <Plus className="h-3.5 w-3.5" />
-              追加
+              {COST_TYPES[type].shortLabel}を追加
             </Button>
           }
         />
@@ -253,8 +250,6 @@ function ProjectDetailContent() {
     );
   };
 
-  const costBreakdownTotal = fin.costTotal || 1;
-
   return (
     <PageContainer>
       <AppPageHeader
@@ -320,7 +315,7 @@ function ProjectDetailContent() {
       {/* 収支サマリー */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
         <MiniStat label="売上" value={fin.hasRevenue ? yen(fin.revenueTotal) : "未登録"} />
-        <MiniStat label="発注費" value={yen(fin.orderTotal)} />
+        <MiniStat label="外注費" value={yen(fin.orderTotal)} />
         <MiniStat label="材料費" value={yen(fin.materialTotal)} />
         <MiniStat label="その他経費" value={yen(fin.expenseTotal)} />
         <MiniStat
@@ -353,153 +348,8 @@ function ProjectDetailContent() {
 
       <Tabs items={tabs} value={tab} onChange={setTab} className="mt-5 mb-4" />
 
-      {tab === "overview" ? (
-        <div className="grid gap-3 lg:grid-cols-3">
-          <Card>
-            <CardHeader title="基本情報" />
-            <div className="divide-y divide-neutral-50 px-5 pb-4">
-              <InfoRow icon={User} label="顧客名" value={project.customerName} />
-              <InfoRow icon={MapPin} label="現場住所" value={project.siteAddress} />
-              <InfoRow icon={User} label="担当者" value={manager?.name ?? ""} />
-              <InfoRow
-                icon={FileText}
-                label="工期"
-                value={`${formatDate(project.startDate)} 〜 ${formatDate(project.dueDate)}${
-                  project.completedDate ? `（実完了 ${formatDate(project.completedDate)}）` : ""
-                }`}
-              />
-              <InfoRow
-                icon={Tag}
-                label="タグ"
-                value={
-                  project.tags.length > 0 ? (
-                    <span className="flex flex-wrap gap-1">
-                      {project.tags.map((t) => (
-                        <span key={t} className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">
-                          {t}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    ""
-                  )
-                }
-              />
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader title="原価の内訳" description={`原価合計 ${yen(fin.costTotal)}`} />
-            <div className="px-5 pb-5 pt-1">
-              {fin.costTotal === 0 ? (
-                <p className="py-6 text-center text-xs text-neutral-400">原価はまだ登録されていません</p>
-              ) : (
-                <>
-                  {/* 積み上げバー（2pxギャップで区切る） */}
-                  <div className="flex h-3 w-full gap-[2px] overflow-hidden rounded-full">
-                    {fin.orderTotal > 0 ? (
-                      <span className="rounded-full bg-indigo-400" style={{ width: `${(fin.orderTotal / costBreakdownTotal) * 100}%` }} />
-                    ) : null}
-                    {fin.materialTotal > 0 ? (
-                      <span className="rounded-full bg-amber-400" style={{ width: `${(fin.materialTotal / costBreakdownTotal) * 100}%` }} />
-                    ) : null}
-                    {fin.expenseTotal > 0 ? (
-                      <span className="rounded-full bg-slate-300" style={{ width: `${(fin.expenseTotal / costBreakdownTotal) * 100}%` }} />
-                    ) : null}
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {[
-                      { label: "発注費", value: fin.orderTotal, dot: "bg-indigo-400", tab: "order" },
-                      { label: "材料費", value: fin.materialTotal, dot: "bg-amber-400", tab: "material" },
-                      { label: "その他経費", value: fin.expenseTotal, dot: "bg-slate-300", tab: "expense" },
-                    ].map((row) => (
-                      <button
-                        key={row.label}
-                        type="button"
-                        onClick={() => setTab(row.tab)}
-                        className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left hover:bg-neutral-50 cursor-pointer"
-                      >
-                        <span className="flex items-center gap-2 text-xs text-neutral-500">
-                          <span className={cn("h-2 w-2 rounded-[3px]", row.dot)} />
-                          {row.label}
-                        </span>
-                        <CurrencyText value={row.value} className="text-xs" />
-                      </button>
-                    ))}
-                    {fin.unpaidCost > 0 ? (
-                      <p className="border-t border-neutral-100 pt-2 text-[11px] text-neutral-400 tnum">
-                        うち未払い {yen(fin.unpaidCost)}
-                      </p>
-                    ) : null}
-                  </div>
-                </>
-              )}
-            </div>
-          </Card>
-
-          <div className="space-y-3">
-            <Card>
-              <CardHeader
-                title="メモ"
-                action={
-                  <button
-                    type="button"
-                    onClick={() => setTab("memo")}
-                    className="text-xs font-medium text-brand-600 hover:text-brand-700 cursor-pointer"
-                  >
-                    編集
-                  </button>
-                }
-              />
-              <div className="px-5 pb-4">
-                <p className="whitespace-pre-wrap text-xs leading-6 text-neutral-600">
-                  {project.memo || "メモはまだありません"}
-                </p>
-              </div>
-            </Card>
-            <Card>
-              <CardHeader
-                title="最近の書類"
-                action={
-                  <Link
-                    href={`/app/documents/upload?project=${project.id}`}
-                    className="text-xs font-medium text-brand-600 hover:text-brand-700"
-                  >
-                    写真から登録
-                  </Link>
-                }
-              />
-              <div className="px-3 pb-3">
-                {documents.length === 0 ? (
-                  <p className="px-2 py-4 text-center text-xs text-neutral-400">書類はまだありません</p>
-                ) : (
-                  documents.slice(0, 4).map((doc) => (
-                    <button
-                      key={doc.id}
-                      type="button"
-                      onClick={() => setTab("documents")}
-                      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-neutral-50 cursor-pointer"
-                    >
-                      <DocThumb doc={doc} className="h-9 w-8 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-semibold text-neutral-800">
-                          {doc.vendorName || DOCUMENT_TYPES[doc.documentType]}
-                        </p>
-                        <p className="text-[10px] text-neutral-400 tnum">
-                          {doc.totalAmount !== null ? yen(doc.totalAmount) : "金額未読取"}
-                        </p>
-                      </div>
-                      <StatusBadge meta={DOCUMENT_STATUSES[doc.status]} />
-                    </button>
-                  ))
-                )}
-              </div>
-            </Card>
-          </div>
-        </div>
-      ) : null}
-
-      {tab === "revenue" ? (
+      {tab === "finance" ? (
+        <div className="space-y-3">
         <Card>
           <CardHeader
             title={`売上合計 ${yen(fin.revenueTotal)}`}
@@ -507,7 +357,7 @@ function ProjectDetailContent() {
             action={
               <Button size="sm" onClick={() => setRevenueForm({ open: true, editing: null })}>
                 <Plus className="h-3.5 w-3.5" />
-                追加
+                売上を追加
               </Button>
             }
           />
@@ -565,11 +415,132 @@ function ProjectDetailContent() {
             )}
           </div>
         </Card>
-      ) : null}
 
-      {tab === "order" ? costTab("order") : null}
-      {tab === "material" ? costTab("material") : null}
-      {tab === "expense" ? costTab("expense") : null}
+        {costTab("material")}
+        {costTab("order")}
+        {costTab("expense")}
+
+        {/* 見積・請求は現場ユーザーには折りたたみで提供（機能は維持） */}
+        <details className="rounded-2xl border border-neutral-200/80 bg-white shadow-card">
+          <summary className="cursor-pointer list-none px-5 py-4 text-sm font-bold text-neutral-800">
+            請求・見積を管理する
+            <span className="ml-2 text-[11px] font-medium text-neutral-400">
+              見積 {estimates.length}件・請求 {invoices.length}件
+            </span>
+          </summary>
+          <div className="space-y-3 border-t border-neutral-100 p-3">
+            <Card className="shadow-none">
+              <CardHeader
+                title={`請求書 ${invoices.length}件`}
+                action={
+                  <Link href={`/app/invoices/new?project=${project.id}`}>
+                    <Button size="sm" variant="secondary">
+                      <Plus className="h-3.5 w-3.5" />
+                      請求書を作成
+                    </Button>
+                  </Link>
+                }
+              />
+              <div className="mt-2 px-2 pb-3">
+                {invoices.length === 0 ? (
+                  <p className="px-3 py-4 text-center text-xs text-neutral-400">請求書はまだありません</p>
+                ) : (
+                  <div className="divide-y divide-neutral-50">
+                    {invoices.map((inv) => (
+                      <Link
+                        key={inv.id}
+                        href={`/app/invoices/${inv.id}`}
+                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-semibold text-neutral-800">{inv.title}</p>
+                          <p className="text-[11px] text-neutral-400">
+                            {inv.invoiceNumber}・支払期限 {formatDate(inv.dueDate)}
+                          </p>
+                        </div>
+                        <StatusBadge meta={INVOICE_STATUSES[inv.status]} />
+                        <CurrencyText value={inv.total} className="w-24 text-right text-[13px]" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Card>
+            <Card className="shadow-none">
+              <CardHeader
+                title={`見積書 ${estimates.length}件`}
+                action={
+                  <Link href={`/app/estimates/new?project=${project.id}`}>
+                    <Button size="sm" variant="secondary">
+                      <Plus className="h-3.5 w-3.5" />
+                      見積を作成
+                    </Button>
+                  </Link>
+                }
+              />
+              <div className="mt-2 px-2 pb-3">
+                {estimates.length === 0 ? (
+                  <p className="px-3 py-4 text-center text-xs text-neutral-400">見積書はまだありません</p>
+                ) : (
+                  <div className="divide-y divide-neutral-50">
+                    {estimates.map((e) => (
+                      <Link
+                        key={e.id}
+                        href={`/app/estimates/${e.id}`}
+                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-semibold text-neutral-800">{e.title}</p>
+                          <p className="text-[11px] text-neutral-400">
+                            {e.estimateNumber}・{formatDate(e.issueDate)}
+                          </p>
+                        </div>
+                        <StatusBadge meta={ESTIMATE_STATUSES[e.status]} />
+                        <CurrencyText value={e.total} className="w-24 text-right text-[13px]" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </details>
+
+        {/* 案件情報 */}
+        <Card>
+          <CardHeader title="案件情報" />
+          <div className="grid gap-x-8 divide-y divide-neutral-50 px-5 pb-4 sm:grid-cols-2 sm:divide-y-0">
+            <InfoRow icon={User} label="顧客名" value={project.customerName} />
+            <InfoRow icon={MapPin} label="現場住所" value={project.siteAddress} />
+            <InfoRow icon={User} label="担当者" value={manager?.name ?? ""} />
+            <InfoRow
+              icon={FileText}
+              label="工期"
+              value={`${formatDate(project.startDate)} 〜 ${formatDate(project.dueDate)}${
+                project.completedDate ? `（実完了 ${formatDate(project.completedDate)}）` : ""
+              }`}
+            />
+            <InfoRow
+              icon={Tag}
+              label="タグ"
+              value={
+                project.tags.length > 0 ? (
+                  <span className="flex flex-wrap gap-1">
+                    {project.tags.map((t) => (
+                      <span key={t} className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">
+                        {t}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  ""
+                )
+              }
+            />
+          </div>
+        </Card>
+        </div>
+      ) : null}
 
       {tab === "documents" ? (
         <Card>
@@ -622,86 +593,6 @@ function ProjectDetailContent() {
                       </p>
                     </div>
                     <StatusBadge meta={DOCUMENT_STATUSES[doc.status]} />
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
-      ) : null}
-
-      {tab === "estimates" ? (
-        <Card>
-          <CardHeader
-            title={`見積書 ${estimates.length}件`}
-            action={
-              <Link href={`/app/estimates/new?project=${project.id}`}>
-                <Button size="sm">
-                  <Plus className="h-3.5 w-3.5" />
-                  見積を作成
-                </Button>
-              </Link>
-            }
-          />
-          <div className="mt-2 px-2 pb-3">
-            {estimates.length === 0 ? (
-              <EmptyState icon={FileSpreadsheet} title="見積書はまだありません" className="py-8" />
-            ) : (
-              <div className="divide-y divide-neutral-50">
-                {estimates.map((e) => (
-                  <Link
-                    key={e.id}
-                    href={`/app/estimates/${e.id}`}
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-neutral-800">{e.title}</p>
-                      <p className="text-[11px] text-neutral-400">
-                        {e.estimateNumber}・{formatDate(e.issueDate)}
-                      </p>
-                    </div>
-                    <StatusBadge meta={ESTIMATE_STATUSES[e.status]} />
-                    <CurrencyText value={e.total} className="w-24 text-right text-[13px]" />
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
-      ) : null}
-
-      {tab === "invoices" ? (
-        <Card>
-          <CardHeader
-            title={`請求書 ${invoices.length}件`}
-            action={
-              <Link href={`/app/invoices/new?project=${project.id}`}>
-                <Button size="sm">
-                  <Plus className="h-3.5 w-3.5" />
-                  請求書を作成
-                </Button>
-              </Link>
-            }
-          />
-          <div className="mt-2 px-2 pb-3">
-            {invoices.length === 0 ? (
-              <EmptyState icon={FileText} title="請求書はまだありません" className="py-8" />
-            ) : (
-              <div className="divide-y divide-neutral-50">
-                {invoices.map((inv) => (
-                  <Link
-                    key={inv.id}
-                    href={`/app/invoices/${inv.id}`}
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-neutral-800">{inv.title}</p>
-                      <p className="text-[11px] text-neutral-400">
-                        {inv.invoiceNumber}・支払期限 {formatDate(inv.dueDate)}
-                      </p>
-                    </div>
-                    <StatusBadge meta={INVOICE_STATUSES[inv.status]} />
-                    <CurrencyText value={inv.total} className="w-24 text-right text-[13px]" />
                   </Link>
                 ))}
               </div>

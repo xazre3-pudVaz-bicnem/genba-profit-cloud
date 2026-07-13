@@ -33,7 +33,7 @@ export function ProjectTable({ rows }: { rows: ProjectRow[] }) {
             <TH>案件名</TH>
             <TH>ステータス</TH>
             <TH align="right">売上</TH>
-            <TH align="right">発注費</TH>
+            <TH align="right">外注費</TH>
             <TH align="right">材料費</TH>
             <TH align="right">経費</TH>
             <TH align="right">粗利</TH>

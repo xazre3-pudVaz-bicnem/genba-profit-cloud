@@ -95,6 +95,13 @@ export function currentMonthKey(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** 月キー（"YYYY-MM"）をdeltaか月ずらす（前の月: -1 / 次の月: +1） */
+export function shiftMonthKey(key: string, delta: number): string {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /** 今日の "YYYY-MM-DD" */
 export function todayISO(): string {
   const now = new Date();

@@ -51,9 +51,9 @@ export function DocumentUploadBox({ onFile }: DocumentUploadBoxProps) {
               className="hidden"
               onChange={(e) => handle(e.target.files?.[0])}
             />
-            <span className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-brand-600 text-base font-medium text-white shadow-sm transition-colors hover:bg-brand-700">
+            <span className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-base font-bold text-white shadow-sm transition-colors hover:bg-brand-700">
               <Camera className="h-5 w-5" />
-              カメラで撮影
+              カメラで撮る
             </span>
           </label>
           <label className="w-full cursor-pointer">
@@ -63,9 +63,9 @@ export function DocumentUploadBox({ onFile }: DocumentUploadBoxProps) {
               className="hidden"
               onChange={(e) => handle(e.target.files?.[0])}
             />
-            <span className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white text-base font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50">
+            <span className="flex h-14 w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white text-base font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50">
               <ImagePlus className="h-5 w-5" />
-              ファイルを選択
+              写真を選ぶ
             </span>
           </label>
         </div>

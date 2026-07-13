@@ -1,7 +1,18 @@
 "use client";
 
-import { Building2, Database, Download, Landmark, RotateCcw, Upload } from "lucide-react";
+import {
+  Building2,
+  ChevronRight,
+  Database,
+  Download,
+  Landmark,
+  LogOut,
+  RotateCcw,
+  Upload,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PageContainer, AppPageHeader } from "@/components/app/app-page-header";
 import { Button } from "@/components/shared/button";
@@ -16,13 +27,15 @@ import { APP_NAME } from "@/lib/shared/config";
 import {
   exportDataJSON,
   resetDemoData,
+  setSession,
   updateCompany,
   uploadCompanyLogo,
   useDB,
   useSession,
 } from "@/lib/app/data-store";
 import { canManageCompany } from "@/lib/app/permissions";
-import { isSupabaseConfigured } from "@/lib/app/supabase";
+import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
+import { marketingUrl } from "@/lib/urls";
 import { LOGO_ACCEPT, validateLogoFile } from "@/lib/app/upload";
 import { useCompanyLogoUrl } from "@/components/app/print-doc";
 import type { Company } from "@/lib/app/types";
@@ -37,6 +50,7 @@ function StatusDot({ ok }: { ok: boolean }) {
 
 export default function SettingsPage() {
   const db = useDB();
+  const router = useRouter();
   const session = useSession();
   const isDemo = session?.mode !== "supabase";
   const editable = canManageCompany(session?.role);
@@ -113,7 +127,7 @@ export default function SettingsPage() {
   return (
     <PageContainer className="max-w-3xl">
       <AppPageHeader
-        title="会社設定"
+        title="設定"
         description="会社情報・振込先は見積書・請求書に反映されます"
         actions={editable ? <Button onClick={save}>保存する</Button> : undefined}
       />
@@ -213,7 +227,85 @@ export default function SettingsPage() {
           </fieldset>
         </Card>
 
-        <Card>
+        {/* メンバー管理（オーナー・管理者のみ） */}
+        {editable ? (
+          <Link
+            href="/app/settings/members"
+            className="flex items-center gap-3 rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-card transition-all hover:border-neutral-300 hover:shadow-pop"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100">
+              <Users className="h-5 w-5 text-neutral-500" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-neutral-900">メンバー</p>
+              <p className="text-xs text-neutral-400">メンバーの一覧・権限の変更</p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-neutral-300" />
+          </Link>
+        ) : null}
+
+        {/* ログアウト */}
+        <button
+          type="button"
+          onClick={async () => {
+            const supabase = getSupabase();
+            if (supabase) {
+              try {
+                await supabase.auth.signOut();
+              } catch {
+                // ignore
+              }
+            }
+            setSession(null);
+            router.replace(marketingUrl("/"));
+          }}
+          className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200/80 bg-white p-5 text-left shadow-card transition-all hover:border-red-200 hover:bg-red-50/40 cursor-pointer"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50">
+            <LogOut className="h-5 w-5 text-red-500" />
+          </span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-neutral-900">ログアウト</p>
+            <p className="text-xs text-neutral-400">このアカウントからログアウトします</p>
+          </div>
+        </button>
+
+        {/* 細かい管理項目は折りたたみ（通常ユーザーには見せない） */}
+        <details className="rounded-2xl border border-neutral-200/80 bg-white shadow-card">
+          <summary className="cursor-pointer list-none px-5 py-4 text-sm font-bold text-neutral-800">
+            詳細設定
+            <span className="ml-2 text-[11px] font-medium text-neutral-400">
+              管理ページ・接続状態・データ管理
+            </span>
+          </summary>
+          <div className="space-y-3 border-t border-neutral-100 p-3">
+
+        <Card className="shadow-none">
+          <CardHeader title="管理ページ" description="経営者・事務担当向けの画面" />
+          <div className="grid gap-1.5 px-5 pb-5 pt-1 sm:grid-cols-2">
+            {[
+              { href: "/app/dashboard", label: "経営レポート（旧ダッシュボード）" },
+              { href: "/app/projects/board", label: "案件ボード" },
+              { href: "/app/calendar", label: "カレンダー" },
+              { href: "/app/documents", label: "書類一覧" },
+              { href: "/app/revenues", label: "売上一覧" },
+              { href: "/app/costs", label: "原価一覧" },
+              { href: "/app/estimates", label: "見積" },
+              { href: "/app/invoices", label: "請求" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center justify-between rounded-lg border border-neutral-100 px-3.5 py-2.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+              >
+                {item.label}
+                <ChevronRight className="h-3.5 w-3.5 text-neutral-300" />
+              </Link>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="shadow-none">
           <CardHeader title="接続状態" description="外部サービスとの接続状況" />
           <div className="space-y-3 px-5 pb-5 pt-2">
             <div className="flex items-center justify-between rounded-xl border border-neutral-100 p-3.5">
@@ -260,7 +352,7 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <Card>
+        <Card className="shadow-none">
           <CardHeader
             title="データ管理"
             description={isDemo ? "デモデータの初期化・バックアップ" : "ローカルデータのバックアップ"}
@@ -276,13 +368,11 @@ export default function SettingsPage() {
                 デモデータをリセット
               </Button>
             ) : null}
-            {editable ? (
-              <Link href="/app/settings/members" className="ml-auto">
-                <Button variant="ghost">メンバー管理へ</Button>
-              </Link>
-            ) : null}
           </div>
         </Card>
+
+          </div>
+        </details>
       </div>
 
       <ConfirmDialog

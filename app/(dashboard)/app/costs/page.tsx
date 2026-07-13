@@ -54,7 +54,7 @@ function CostsContent() {
     <PageContainer>
       <AppPageHeader
         title="原価"
-        description="発注費・材料費・経費の一覧"
+        description="外注費・材料費・経費の一覧"
         actions={
           <Button onClick={() => setForm({ open: true, editing: null })}>
             <Plus className="h-4 w-4" />
@@ -65,7 +65,7 @@ function CostsContent() {
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard label="原価合計" value={yen(totalAll)} size="sm" />
-        <StatCard label="発注費" value={yen(sum("order"))} size="sm" />
+        <StatCard label="外注費" value={yen(sum("order"))} size="sm" />
         <StatCard label="材料費" value={yen(sum("material"))} size="sm" />
         <StatCard label="その他経費" value={yen(sum("expense"))} size="sm" />
         <StatCard
@@ -81,7 +81,7 @@ function CostsContent() {
         <FilterChips
           items={[
             { value: "all", label: "すべて", count: db.costs.length },
-            { value: "order", label: "発注費" },
+            { value: "order", label: "外注費" },
             { value: "material", label: "材料費" },
             { value: "expense", label: "経費" },
           ]}

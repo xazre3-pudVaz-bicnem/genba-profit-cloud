@@ -33,7 +33,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-neutral-200 bg-white/90 px-4 backdrop-blur lg:px-6 no-print">
       {/* 左: モバイルはロゴ / PCは会社名 */}
       <div className="flex min-w-0 items-center gap-3">
-        <Link href={appPath()} className="lg:hidden">
+        <Link href={appPath("/documents/upload")} className="lg:hidden">
           <Logo size="sm" />
         </Link>
         <p className="hidden truncate text-sm font-bold text-neutral-800 lg:block">

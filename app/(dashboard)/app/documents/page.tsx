@@ -53,7 +53,7 @@ const STATUS_CHIPS: { value: StatusFilter; label: string }[] = [
 
 const TARGET_LABELS: Record<Exclude<RegisterTarget, "none">, string> = {
   material: "材料費",
-  order: "発注費",
+  order: "外注費",
   expense: "経費",
   revenue: "売上",
 };
@@ -107,7 +107,7 @@ function DocumentsContent() {
 
   const projectOf = (id: string | null) => db.projects.find((p) => p.id === id);
 
-  /** 登録先ラベル（売上 / 発注費 / 材料費 / 経費） */
+  /** 登録先ラベル（売上 / 外注費 / 材料費 / 経費） */
   const registeredLabel = (doc: DocumentRec): string | null => {
     if (!doc.registeredTo) return null;
     if (doc.registeredTo.kind === "revenue") return "売上";

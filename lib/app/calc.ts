@@ -1,6 +1,6 @@
 import { PROFIT_GOOD_RATE, PROFIT_WARN_RATE } from "./constants";
 import { currentMonthKey, isOverdue, monthKey } from "../shared/format";
-import type { Cost, DB, DocumentRec, Invoice, Revenue } from "./types";
+import type { Cost, DB, DocumentRec, Invoice, Project, Revenue } from "./types";
 
 // ============================================================
 // 収支の自動計算（すべての画面でこの関数群を使う）
@@ -176,6 +176,61 @@ export function dashboardStats(db: DB): DashboardStats {
       (d) => d.status === "needs_review" || d.status === "attention" || d.status === "pending"
     ).length,
   };
+}
+
+// ------------------------------------------------------------
+// 月別の集計（案件一覧の月表示用）
+// 計上月の判定は revenueAccrualDate / costAccrualDate に集約してあり、
+// 将来「会計月／施工月」の切り替えもこの関数群の差し替えだけで対応できる
+// ------------------------------------------------------------
+
+export interface MonthSummary {
+  revenueTotal: number;
+  costTotal: number;
+  profit: number;
+  /** 売上0の月はnull（画面では「—」表示） */
+  profitRate: number | null;
+}
+
+/** 対象月（"YYYY-MM"）の売上・原価・利益を集計する */
+export function monthSummary(db: DB, month: string): MonthSummary {
+  const revenueTotal = sum(
+    db.revenues.filter((r) => monthKey(revenueAccrualDate(r)) === month).map((r) => r.amount)
+  );
+  const costTotal = sum(
+    db.costs.filter((c) => monthKey(costAccrualDate(c)) === month).map((c) => c.amount)
+  );
+  const profit = revenueTotal - costTotal;
+  return {
+    revenueTotal,
+    costTotal,
+    profit,
+    profitRate: revenueTotal > 0 ? (profit / revenueTotal) * 100 : null,
+  };
+}
+
+/**
+ * 対象月に関係する案件を返す。
+ * 収支の計上月・工期（開始〜完了/完了予定）・作成月のいずれかが一致するもの。
+ */
+export function projectsForMonth(db: DB, month: string): Project[] {
+  return db.projects.filter((p) => {
+    if (monthKey(p.createdAt) === month) return true;
+    const start = p.startDate ? monthKey(p.startDate) : null;
+    const end = p.completedDate
+      ? monthKey(p.completedDate)
+      : p.dueDate
+        ? monthKey(p.dueDate)
+        : start;
+    if (start && start <= month && (end === null || month <= end)) return true;
+    if (db.revenues.some((r) => r.projectId === p.id && monthKey(revenueAccrualDate(r)) === month)) {
+      return true;
+    }
+    if (db.costs.some((c) => c.projectId === p.id && monthKey(costAccrualDate(c)) === month)) {
+      return true;
+    }
+    return false;
+  });
 }
 
 // ------------------------------------------------------------

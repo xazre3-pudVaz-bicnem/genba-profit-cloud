@@ -1,253 +1,231 @@
 "use client";
 
-import { FolderKanban, Plus, Search, SquareKanban } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderKanban, Plus } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { useState } from "react";
 import { PageContainer, AppPageHeader } from "@/components/app/app-page-header";
-import { ProjectTable, type ProjectRow } from "@/components/app/project-table";
+import { StatusBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/shared/button";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Input } from "@/components/shared/input";
 import { PageSkeleton } from "@/components/shared/skeleton";
-import { FilterChips } from "@/components/shared/tabs";
-import { Select } from "@/components/shared/select";
-import { projectFinance } from "@/lib/app/calc";
-import { PROJECT_STATUSES, PROJECT_STATUS_ORDER } from "@/lib/app/constants";
-import { yen } from "@/lib/shared/format";
+import { monthSummary, projectFinance, projectsForMonth } from "@/lib/app/calc";
+import { PROJECT_STATUSES } from "@/lib/app/constants";
 import { useDB } from "@/lib/app/data-store";
-import type { ProjectStatus } from "@/lib/app/types";
+import { currentMonthKey, monthLabel, pct1, shiftMonthKey, yen } from "@/lib/shared/format";
+import { cn } from "@/lib/shared/utils";
 
-type QuickFilter = "all" | "unbilled" | "unpaid" | "low_profit" | "deficit" | "pending_docs";
-type SortKey = "updated" | "revenue" | "profit" | "rate_asc" | "rate_desc" | "due";
+// ============================================================
+// 案件一覧（月ごとのシンプル管理画面）
+// タブ・フィルターは置かず、「今月の数字」と「案件カード」だけを見せる。
+// 集計ルールは lib/app/calc.ts の monthSummary / projectsForMonth に共通化。
+// ============================================================
 
-const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
-  { value: "all", label: "すべて" },
-  { value: "unbilled", label: "未請求あり" },
-  { value: "unpaid", label: "未入金あり" },
-  { value: "low_profit", label: "利益率が低い" },
-  { value: "deficit", label: "赤字" },
-  { value: "pending_docs", label: "書類未確認あり" },
-];
-
-function ProjectsContent() {
-  const db = useDB();
-  const params = useSearchParams();
-
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<ProjectStatus | "all">(
-    (params.get("status") as ProjectStatus) || "all"
-  );
-  const [quick, setQuick] = useState<QuickFilter>((params.get("filter") as QuickFilter) || "all");
-  const [managerId, setManagerId] = useState("all");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [sort, setSort] = useState<SortKey>("updated");
-
-  const rows = useMemo<ProjectRow[]>(() => {
-    if (!db.hydrated) return [];
-    const q = search.trim().toLowerCase();
-
-    let list = db.projects.map((project) => ({
-      project,
-      fin: projectFinance(project.id, db),
-      managerName: db.members.find((m) => m.id === project.managerId)?.name ?? null,
-    }));
-
-    if (q) {
-      list = list.filter(({ project }) =>
-        [project.name, project.customerName, project.siteAddress, project.memo, ...project.tags]
-          .join(" ")
-          .toLowerCase()
-          .includes(q)
-      );
-    }
-    if (status !== "all") list = list.filter(({ project }) => project.status === status);
-    if (managerId !== "all") list = list.filter(({ project }) => project.managerId === managerId);
-    if (from) {
-      list = list.filter(({ project }) => {
-        const d = project.dueDate ?? project.startDate;
-        return d !== null && d >= from;
-      });
-    }
-    if (to) {
-      list = list.filter(({ project }) => {
-        const d = project.startDate ?? project.dueDate;
-        return d !== null && d <= to;
-      });
-    }
-
-    switch (quick) {
-      case "unbilled":
-        list = list.filter(({ fin }) => fin.unbilled > 0);
-        break;
-      case "unpaid":
-        list = list.filter(({ fin }) => fin.unpaidReceivable > 0);
-        break;
-      case "low_profit":
-        list = list.filter(({ fin }) => fin.isLowProfit || fin.isDeficit);
-        break;
-      case "deficit":
-        list = list.filter(({ fin }) => fin.isDeficit);
-        break;
-      case "pending_docs":
-        list = list.filter(({ fin }) => fin.pendingDocCount > 0);
-        break;
-    }
-
-    switch (sort) {
-      case "updated":
-        list.sort((a, b) => b.project.updatedAt.localeCompare(a.project.updatedAt));
-        break;
-      case "revenue":
-        list.sort((a, b) => b.fin.revenueTotal - a.fin.revenueTotal);
-        break;
-      case "profit":
-        list.sort((a, b) => b.fin.profit - a.fin.profit);
-        break;
-      case "rate_asc":
-        list.sort((a, b) => (a.fin.profitRate ?? 999) - (b.fin.profitRate ?? 999));
-        break;
-      case "rate_desc":
-        list.sort((a, b) => (b.fin.profitRate ?? -999) - (a.fin.profitRate ?? -999));
-        break;
-      case "due":
-        list.sort((a, b) =>
-          (a.project.dueDate ?? "9999-99-99").localeCompare(b.project.dueDate ?? "9999-99-99")
-        );
-        break;
-    }
-
-    return list;
-  }, [db, search, status, quick, managerId, from, to, sort]);
-
-  if (!db.hydrated) return <PageSkeleton />;
-
-  const totalRevenue = rows.reduce((acc, r) => acc + r.fin.revenueTotal, 0);
-  const totalProfit = rows.reduce((acc, r) => acc + r.fin.profit, 0);
-
-  const statusChips = [
-    { value: "all", label: "すべて", count: db.projects.length },
-    ...PROJECT_STATUS_ORDER.map((s) => ({
-      value: s,
-      label: PROJECT_STATUSES[s].label,
-      count: db.projects.filter((p) => p.status === s).length,
-    })),
-  ];
-
+function SummaryCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "danger" | "success";
+}) {
   return (
-    <PageContainer>
-      <AppPageHeader
-        title="案件"
-        description="全案件の収支状況を一覧で確認できます"
-        actions={
-          <>
-            <Link href="/app/projects/board">
-              <Button variant="secondary">
-                <SquareKanban className="h-4 w-4" />
-                ボード表示
-              </Button>
-            </Link>
-            <Link href="/app/projects/new">
-              <Button>
-                <Plus className="h-4 w-4" />
-                新規案件
-              </Button>
-            </Link>
-          </>
-        }
-      />
-
-      {/* 検索・フィルタ */}
-      <div className="mb-4 space-y-3">
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="案件名・顧客名・住所・メモで検索"
-              className="pl-9"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Select
-              value={managerId}
-              onChange={(e) => setManagerId(e.target.value)}
-              className="w-full sm:w-36"
-            >
-              <option value="all">担当者: 全員</option>
-              {db.members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-            <Select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
-              className="w-full sm:w-44"
-            >
-              <option value="updated">並び: 更新日が新しい順</option>
-              <option value="revenue">並び: 売上が大きい順</option>
-              <option value="profit">並び: 利益が大きい順</option>
-              <option value="rate_asc">並び: 利益率が低い順</option>
-              <option value="rate_desc">並び: 利益率が高い順</option>
-              <option value="due">並び: 完了予定日が近い順</option>
-            </Select>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <FilterChips
-            items={statusChips}
-            value={status}
-            onChange={(v) => setStatus(v as ProjectStatus | "all")}
-          />
-          <div className="flex items-center gap-2">
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-8 w-[136px] text-xs" />
-            <span className="text-xs text-neutral-400">〜</span>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 w-[136px] text-xs" />
-          </div>
-        </div>
-        <FilterChips items={QUICK_FILTERS} value={quick} onChange={(v) => setQuick(v as QuickFilter)} />
-      </div>
-
-      {/* 集計 */}
-      <p className="mb-3 text-xs text-neutral-500 tnum">
-        {rows.length}件 ・ 売上合計 <span className="font-bold text-neutral-800">{yen(totalRevenue)}</span>
-        {" ・ "}粗利合計{" "}
-        <span className={totalProfit < 0 ? "font-bold text-red-600" : "font-bold text-neutral-800"}>
-          {yen(totalProfit)}
-        </span>
+    <div className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-card sm:p-5">
+      <p className="text-xs font-medium text-neutral-400">{label}</p>
+      <p
+        className={cn(
+          "tnum mt-1.5 text-xl font-bold tracking-tight sm:text-2xl",
+          tone === "danger" ? "text-red-600" : tone === "success" ? "text-emerald-600" : "text-neutral-900"
+        )}
+      >
+        {value}
       </p>
-
-      {rows.length === 0 ? (
-        <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-card">
-          <EmptyState
-            icon={FolderKanban}
-            title="条件に合う案件がありません"
-            description="検索条件を変更するか、新しい案件を作成してください。"
-            action={
-              <Link href="/app/projects/new">
-                <Button>
-                  <Plus className="h-4 w-4" />
-                  新規案件を作成
-                </Button>
-              </Link>
-            }
-          />
-        </div>
-      ) : (
-        <ProjectTable rows={rows} />
-      )}
-    </PageContainer>
+    </div>
   );
 }
 
 export default function ProjectsPage() {
+  const db = useDB();
+  const [month, setMonth] = useState(currentMonthKey());
+
+  if (!db.hydrated) return <PageSkeleton />;
+
+  const summary = monthSummary(db, month);
+  const projects = projectsForMonth(db, month).sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt)
+  );
+  const isCurrentMonth = month === currentMonthKey();
+
   return (
-    <Suspense fallback={<PageSkeleton />}>
-      <ProjectsContent />
-    </Suspense>
+    <PageContainer>
+      <AppPageHeader
+        title="案件一覧"
+        description="月ごとの売上・原価・利益を確認できます"
+        actions={
+          <Link href="/app/projects/new">
+            <Button>
+              <Plus className="h-4 w-4" />
+              案件を追加
+            </Button>
+          </Link>
+        }
+      />
+
+      {/* 年月切り替え */}
+      <div className="mb-2 flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setMonth(shiftMonthKey(month, -1))}
+          className="flex h-11 items-center gap-1 rounded-xl border border-neutral-200 bg-white px-3.5 text-sm font-semibold text-neutral-600 shadow-sm hover:bg-neutral-50 cursor-pointer"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          前の月
+        </button>
+        <p className="w-36 text-center text-lg font-bold tracking-tight text-neutral-900">
+          {monthLabel(month)}
+        </p>
+        <button
+          type="button"
+          onClick={() => setMonth(shiftMonthKey(month, 1))}
+          className="flex h-11 items-center gap-1 rounded-xl border border-neutral-200 bg-white px-3.5 text-sm font-semibold text-neutral-600 shadow-sm hover:bg-neutral-50 cursor-pointer"
+        >
+          次の月
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mb-4 h-4 text-center">
+        {!isCurrentMonth ? (
+          <button
+            type="button"
+            onClick={() => setMonth(currentMonthKey())}
+            className="text-xs font-medium text-brand-600 hover:underline cursor-pointer"
+          >
+            今月に戻る
+          </button>
+        ) : null}
+      </div>
+
+      {/* 月次サマリー */}
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <SummaryCard label={`${monthLabel(month)}の売上`} value={yen(summary.revenueTotal)} />
+        <SummaryCard label={`${monthLabel(month)}の原価`} value={yen(summary.costTotal)} />
+        <SummaryCard
+          label={`${monthLabel(month)}の利益`}
+          value={yen(summary.profit)}
+          tone={summary.profit < 0 ? "danger" : summary.profit > 0 ? "success" : undefined}
+        />
+        <SummaryCard
+          label="利益率"
+          value={summary.profitRate !== null ? pct1(summary.profitRate) : "—"}
+          tone={
+            summary.profitRate === null
+              ? undefined
+              : summary.profitRate < 0
+                ? "danger"
+                : summary.profitRate >= 30
+                  ? "success"
+                  : undefined
+          }
+        />
+      </div>
+
+      {/* 案件カード */}
+      <div className="mt-5">
+        {projects.length === 0 ? (
+          <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-card">
+            <EmptyState
+              icon={FolderKanban}
+              title={`${monthLabel(month)}の案件はありません`}
+              description="まずは案件を作成してください。レシートの写真登録もここに反映されます。"
+              action={
+                <Link href="/app/projects/new">
+                  <Button>
+                    <Plus className="h-4 w-4" />
+                    案件を追加
+                  </Button>
+                </Link>
+              }
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => {
+              const fin = projectFinance(project.id, db);
+              return (
+                <div
+                  key={project.id}
+                  className="flex flex-col rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-card transition-all hover:border-neutral-300 hover:shadow-pop"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-[15px] font-bold text-neutral-900">
+                        <span
+                          className="h-4 w-1.5 shrink-0 rounded-full"
+                          style={{ background: project.color }}
+                        />
+                        <span className="truncate">{project.name}</span>
+                      </p>
+                      {project.customerName ? (
+                        <p className="mt-0.5 pl-3.5 text-xs text-neutral-400">{project.customerName}</p>
+                      ) : null}
+                    </div>
+                    <StatusBadge meta={PROJECT_STATUSES[project.status]} />
+                  </div>
+
+                  <dl className="mt-4 space-y-2 border-t border-neutral-100 pt-3.5">
+                    <div className="flex items-center justify-between">
+                      <dt className="text-xs text-neutral-400">売上</dt>
+                      <dd className="tnum text-sm font-semibold text-neutral-800">
+                        {fin.hasRevenue ? yen(fin.revenueTotal) : "未登録"}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-xs text-neutral-400">原価</dt>
+                      <dd className="tnum text-sm font-semibold text-neutral-800">{yen(fin.costTotal)}</dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-xs text-neutral-400">利益</dt>
+                      <dd
+                        className={cn(
+                          "tnum text-sm font-bold",
+                          fin.isDeficit ? "text-red-600" : fin.isGoodProfit ? "text-emerald-600" : "text-neutral-900"
+                        )}
+                      >
+                        {yen(fin.profit)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-xs text-neutral-400">利益率</dt>
+                      <dd
+                        className={cn(
+                          "tnum text-sm font-bold",
+                          fin.profitRate === null
+                            ? "text-neutral-400"
+                            : fin.profitRate < 0
+                              ? "text-red-600"
+                              : fin.profitRate < 20
+                                ? "text-amber-600"
+                                : fin.profitRate >= 30
+                                  ? "text-emerald-600"
+                                  : "text-neutral-900"
+                        )}
+                      >
+                        {fin.profitRate !== null ? pct1(fin.profitRate) : "—"}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <Link href={`/app/projects/${project.id}`} className="mt-4">
+                    <Button variant="secondary" className="w-full">
+                      詳細を見る
+                    </Button>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </PageContainer>
   );
 }

@@ -76,7 +76,7 @@ const DEFAULT_TARGET: Record<DocumentType, RegisterTarget> = {
 
 const TARGET_LABELS: Record<RegisterTarget, string> = {
   material: "材料費として登録",
-  order: "発注費として登録",
+  order: "外注費として登録",
   expense: "経費として登録",
   revenue: "売上として登録",
   none: "書類のみ保存",
@@ -382,9 +382,7 @@ function UploadContent() {
     <PageContainer className="max-w-3xl">
       <AppPageHeader
         title="写真から登録"
-        description="レシート・請求書を撮影するだけで、AIが内容を読み取り案件に振り分けます"
-        backHref="/app/documents"
-        backLabel="書類一覧"
+        description="レシート・請求書・領収書を撮るだけで、案件の原価や売上に反映できます"
       />
 
       {/* ステップ表示 */}
@@ -529,27 +527,6 @@ function UploadContent() {
                 </div>
               ) : null}
               <div className="grid flex-1 gap-3.5">
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="書類種別">
-                    <Select
-                      value={form.docType}
-                      onChange={(e) => setForm({ ...form, docType: e.target.value as DocumentType })}
-                    >
-                      {(Object.keys(DOCUMENT_TYPES) as DocumentType[]).map((t) => (
-                        <option key={t} value={t}>
-                          {DOCUMENT_TYPES[t]}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="日付">
-                    <Input
-                      type="date"
-                      value={form.date}
-                      onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    />
-                  </Field>
-                </div>
                 <Field label="取引先">
                   <Input
                     value={form.vendor}
@@ -558,7 +535,14 @@ function UploadContent() {
                   />
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="合計金額（税込）" required>
+                  <Field label="日付">
+                    <Input
+                      type="date"
+                      value={form.date}
+                      onChange={(e) => setForm({ ...form, date: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="金額（税込）" required>
                     <MoneyInput
                       value={form.amount}
                       onChange={(v) =>
@@ -571,6 +555,8 @@ function UploadContent() {
                       }
                     />
                   </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <Field label="うち消費税">
                     <MoneyInput
                       value={form.tax}
@@ -580,30 +566,6 @@ function UploadContent() {
                       }}
                     />
                   </Field>
-                </div>
-                <Field label="品目・内容">
-                  <Input
-                    value={form.itemsText}
-                    onChange={(e) => setForm({ ...form, itemsText: e.target.value })}
-                    placeholder="例：塗料・シーリング材"
-                  />
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="支払方法">
-                    <Select
-                      value={form.paymentMethod}
-                      onChange={(e) =>
-                        setForm({ ...form, paymentMethod: e.target.value as PaymentMethod | "" })
-                      }
-                    >
-                      <option value="">未設定</option>
-                      {(Object.keys(PAYMENT_METHODS) as PaymentMethod[]).map((m) => (
-                        <option key={m} value={m}>
-                          {PAYMENT_METHODS[m]}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
                   <Field label="メモ">
                     <Input
                       value={form.memo}
@@ -612,11 +574,56 @@ function UploadContent() {
                     />
                   </Field>
                 </div>
-                {outcome?.result.registrationNumber ? (
-                  <p className="text-[11px] text-neutral-400">
-                    インボイス登録番号: {outcome.result.registrationNumber}
-                  </p>
-                ) : null}
+
+                {/* 細かい項目は折りたたみ（最初から全部見せない） */}
+                <details className="rounded-xl border border-neutral-100 bg-neutral-50/60 px-3.5 py-3">
+                  <summary className="cursor-pointer list-none text-xs font-semibold text-neutral-500">
+                    詳細を編集（書類の種類・品目・支払方法）
+                  </summary>
+                  <div className="mt-3 grid gap-3.5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="書類の種類">
+                        <Select
+                          value={form.docType}
+                          onChange={(e) => setForm({ ...form, docType: e.target.value as DocumentType })}
+                        >
+                          {(Object.keys(DOCUMENT_TYPES) as DocumentType[]).map((t) => (
+                            <option key={t} value={t}>
+                              {DOCUMENT_TYPES[t]}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label="支払方法">
+                        <Select
+                          value={form.paymentMethod}
+                          onChange={(e) =>
+                            setForm({ ...form, paymentMethod: e.target.value as PaymentMethod | "" })
+                          }
+                        >
+                          <option value="">未設定</option>
+                          {(Object.keys(PAYMENT_METHODS) as PaymentMethod[]).map((m) => (
+                            <option key={m} value={m}>
+                              {PAYMENT_METHODS[m]}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </div>
+                    <Field label="品目・内容">
+                      <Input
+                        value={form.itemsText}
+                        onChange={(e) => setForm({ ...form, itemsText: e.target.value })}
+                        placeholder="例：塗料・シーリング材"
+                      />
+                    </Field>
+                    {outcome?.result.registrationNumber ? (
+                      <p className="text-[11px] text-neutral-400">
+                        インボイス登録番号: {outcome.result.registrationNumber}
+                      </p>
+                    ) : null}
+                  </div>
+                </details>
               </div>
             </div>
           </Card>

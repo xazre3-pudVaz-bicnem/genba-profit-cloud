@@ -114,8 +114,8 @@ export const COST_STATUSES: Record<CostStatus, StatusMeta> = {
 
 export const COST_TYPES: Record<CostType, { label: string; shortLabel: string; badge: string }> = {
   order: {
-    label: "発注費（外注・協力会社）",
-    shortLabel: "発注費",
+    label: "外注費（協力会社への支払い）",
+    shortLabel: "外注費",
     badge: "bg-indigo-50 text-indigo-700 border-indigo-200",
   },
   material: {
