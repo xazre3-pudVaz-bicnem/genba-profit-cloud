@@ -1,6 +1,6 @@
 "use client";
 
-import { FileX2, Pencil, Printer, Trash2 } from "lucide-react";
+import { FileDown, FileSpreadsheet, FileX2, Pencil, Printer, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,6 +14,7 @@ import { PageSkeleton } from "@/components/shared/skeleton";
 import { toast } from "@/components/shared/toast";
 import { ESTIMATE_STATUSES } from "@/lib/app/constants";
 import { removeEstimate, updateEstimate, useDB } from "@/lib/app/data-store";
+import { exportDocumentExcel } from "@/lib/app/export-excel";
 import type { EstimateStatus } from "@/lib/app/types";
 
 export default function EstimateDetailPage() {
@@ -74,9 +75,37 @@ export default function EstimateDetailPage() {
                   編集
                 </Button>
               </Link>
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  void exportDocumentExcel(
+                    "estimate",
+                    {
+                      number: estimate.estimateNumber,
+                      customerName: estimate.customerName,
+                      title: estimate.title,
+                      items: estimate.items,
+                      subtotal: estimate.subtotal,
+                      taxAmount: estimate.taxAmount,
+                      total: estimate.total,
+                      date: estimate.issueDate,
+                      secondaryDateLabel: "有効期限",
+                      secondaryDate: estimate.validUntil,
+                      memo: estimate.memo,
+                    },
+                    db.company
+                  )
+                }
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excelで出力
+              </Button>
               <Button onClick={() => window.print()}>
+                <FileDown className="h-4 w-4" />
+                PDFで出力
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => window.print()} aria-label="印刷" title="印刷">
                 <Printer className="h-4 w-4" />
-                印刷 / PDF保存
               </Button>
               <Button
                 variant="ghost"

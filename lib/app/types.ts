@@ -235,6 +235,28 @@ export interface Invoice {
   updatedAt: string;
 }
 
+export type PurchaseOrderStatus = "draft" | "sent"; // 下書き / 発注済
+
+/** 発注書（外注先・協力会社への発注） */
+export interface PurchaseOrder {
+  id: string;
+  projectId: string | null;
+  orderNumber: string;
+  /** 発注先（協力会社名） */
+  vendorName: string;
+  title: string;
+  items: LineItem[];
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  orderDate: string | null; // 発注日
+  deliveryDate: string | null; // 納期
+  status: PurchaseOrderStatus;
+  memo: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** デモモードのローカルDB全体 */
 export interface DB {
   company: Company;
@@ -245,6 +267,7 @@ export interface DB {
   documents: DocumentRec[];
   estimates: Estimate[];
   invoices: Invoice[];
+  purchaseOrders: PurchaseOrder[];
   hydrated: boolean;
 }
 

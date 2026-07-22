@@ -29,6 +29,7 @@ import {
   spAddEstimate,
   spAddInvoice,
   spAddProject,
+  spAddPurchaseOrder,
   spAddRevenue,
   spRemoveCost,
   spRemoveDocument,
@@ -36,6 +37,7 @@ import {
   spRemoveInvoice,
   spRemoveMember,
   spRemoveProject,
+  spRemovePurchaseOrder,
   spRemoveRevenue,
   spUpdateCompany,
   spUpdateCost,
@@ -44,6 +46,7 @@ import {
   spUpdateInvoice,
   spUpdateMember,
   spUpdateProject,
+  spUpdatePurchaseOrder,
   spUpdateRevenue,
   spUploadCompanyLogo,
   spUploadDocumentFile,
@@ -58,6 +61,7 @@ import type {
   Invoice,
   Member,
   Project,
+  PurchaseOrder,
   Revenue,
 } from "./types";
 import type {
@@ -66,6 +70,7 @@ import type {
   EstimateInput,
   InvoiceInput,
   ProjectInput,
+  PurchaseOrderInput,
   RevenueInput,
 } from "./store";
 
@@ -93,6 +98,9 @@ export interface DataStore {
   addInvoice(input: InvoiceInput): Invoice;
   updateInvoice(id: string, patch: Partial<InvoiceInput>): void;
   removeInvoice(id: string): void;
+  addPurchaseOrder(input: PurchaseOrderInput): PurchaseOrder;
+  updatePurchaseOrder(id: string, patch: Partial<PurchaseOrderInput>): void;
+  removePurchaseOrder(id: string): void;
   // 会社・メンバー
   updateCompany(patch: Partial<Company>): void;
   addMember(input: Omit<Member, "id" | "createdAt">): Member;
@@ -120,6 +128,9 @@ export const demoStore: DataStore = {
   addInvoice: demo.addInvoice,
   updateInvoice: demo.updateInvoice,
   removeInvoice: demo.removeInvoice,
+  addPurchaseOrder: demo.addPurchaseOrder,
+  updatePurchaseOrder: demo.updatePurchaseOrder,
+  removePurchaseOrder: demo.removePurchaseOrder,
   updateCompany: demo.updateCompany,
   addMember: demo.addMember,
   updateMember: demo.updateMember,
@@ -152,6 +163,9 @@ export const supabaseStore: DataStore = {
   addInvoice: spAddInvoice,
   updateInvoice: spUpdateInvoice,
   removeInvoice: spRemoveInvoice,
+  addPurchaseOrder: spAddPurchaseOrder,
+  updatePurchaseOrder: spUpdatePurchaseOrder,
+  removePurchaseOrder: spRemovePurchaseOrder,
   updateCompany: spUpdateCompany,
   // addMember はデモ専用（本番の招待は準備中。UI側で案内を表示する）
   updateMember: spUpdateMember,
@@ -276,6 +290,15 @@ export function updateInvoice(id: string, patch: Partial<InvoiceInput>): void {
 export function removeInvoice(id: string): void {
   getDataStore().removeInvoice(id);
 }
+export function addPurchaseOrder(input: PurchaseOrderInput): PurchaseOrder {
+  return getDataStore().addPurchaseOrder(input);
+}
+export function updatePurchaseOrder(id: string, patch: Partial<PurchaseOrderInput>): void {
+  getDataStore().updatePurchaseOrder(id, patch);
+}
+export function removePurchaseOrder(id: string): void {
+  getDataStore().removePurchaseOrder(id);
+}
 export function updateCompany(patch: Partial<Company>): void {
   getDataStore().updateCompany(patch);
 }
@@ -308,6 +331,7 @@ export {
   type DocumentInput,
   type EstimateInput,
   type InvoiceInput,
+  type PurchaseOrderInput,
 } from "./store";
 export {
   hydrateFromSupabase,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, FolderKanban, Settings, type LucideIcon } from "lucide-react";
+import { Camera, FilePlus2, FolderKanban, Settings, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/shared/logo";
@@ -9,9 +9,9 @@ import { cn } from "@/lib/shared/utils";
 
 // ============================================================
 // アプリ専用サイドバー（PCのみ表示）
-// 現場ユーザーが迷わないよう3項目のみ。写真登録が最重要導線。
-// 売上・原価・見積・請求・書類一覧などの管理ページは
-// 設定・案件詳細からアクセスする（機能自体は維持）。
+// 現場ユーザーが迷わないよう4項目のみ。写真登録が最重要導線。
+// 売上・原価・書類一覧などの管理ページは設定・案件詳細から
+// アクセスする（機能自体は維持）。
 // ============================================================
 
 interface NavItem {
@@ -20,16 +20,22 @@ interface NavItem {
   icon: LucideIcon;
 }
 
+const CREATE_HREF = appPath("/documents/create");
+const UPLOAD_HREF = appPath("/documents/upload");
+
 const ITEMS: NavItem[] = [
   { href: appPath("/projects"), label: "案件一覧", icon: FolderKanban },
   { href: appPath("/settings"), label: "設定", icon: Settings },
 ];
 
-const UPLOAD_HREF = appPath("/documents/upload");
-
 export function AppSidebar() {
   const pathname = usePathname();
   const uploadActive = pathname.startsWith(UPLOAD_HREF);
+  const createActive =
+    pathname.startsWith(CREATE_HREF) ||
+    pathname.startsWith(appPath("/estimates")) ||
+    pathname.startsWith(appPath("/invoices")) ||
+    pathname.startsWith(appPath("/purchase-orders"));
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
@@ -42,6 +48,20 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-6">
+        {/* 書類作成（見積書・請求書・発注書） */}
+        <Link
+          href={CREATE_HREF}
+          className={cn(
+            "flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] font-semibold transition-colors",
+            createActive
+              ? "bg-brand-50 text-brand-700"
+              : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+          )}
+        >
+          <FilePlus2 className={cn("h-5 w-5", createActive ? "text-brand-600" : "text-neutral-400")} />
+          書類作成
+        </Link>
+
         {/* 最重要導線: 写真登録 */}
         <Link
           href={UPLOAD_HREF}
@@ -53,8 +73,6 @@ export function AppSidebar() {
           <Camera className="h-5 w-5" />
           写真登録
         </Link>
-
-        <div className="pt-2" />
 
         {ITEMS.map((item) => {
           const active = isActive(item.href);

@@ -10,6 +10,7 @@ import type {
   DocumentRec,
   Estimate,
   Invoice,
+  PurchaseOrder,
   Member,
   Project,
   Revenue,
@@ -393,6 +394,50 @@ export function updateInvoice(id: string, patch: Partial<InvoiceInput>) {
 export function removeInvoice(id: string) {
   const cur = getDB();
   commit({ ...cur, invoices: cur.invoices.filter((i) => i.id !== id) });
+}
+
+// ------------------------------------------------------------
+// 発注書
+// ------------------------------------------------------------
+
+export type PurchaseOrderInput = Omit<
+  PurchaseOrder,
+  "id" | "orderNumber" | "createdAt" | "updatedAt"
+>;
+
+export function addPurchaseOrder(input: PurchaseOrderInput): PurchaseOrder {
+  const cur = getDB();
+  const now = nowISO();
+  const po: PurchaseOrder = {
+    ...input,
+    id: uid(),
+    orderNumber: nextNumber("PO", cur.purchaseOrders.map((p) => p.orderNumber)),
+    createdAt: now,
+    updatedAt: now,
+  };
+  commit({ ...cur, purchaseOrders: [po, ...cur.purchaseOrders] });
+  return po;
+}
+
+export function updatePurchaseOrder(id: string, patch: Partial<PurchaseOrderInput>) {
+  const cur = getDB();
+  commit({
+    ...cur,
+    purchaseOrders: cur.purchaseOrders.map((p) =>
+      p.id === id ? { ...p, ...patch, updatedAt: nowISO() } : p
+    ),
+  });
+}
+
+export function removePurchaseOrder(id: string) {
+  const cur = getDB();
+  commit({ ...cur, purchaseOrders: cur.purchaseOrders.filter((p) => p.id !== id) });
+}
+
+/** Supabaseから取得した発注書でローカルキャッシュを置き換える（本番モード用） */
+export function replacePurchaseOrders(purchaseOrders: PurchaseOrder[]) {
+  const cur = getDB();
+  commit({ ...cur, purchaseOrders });
 }
 
 // ------------------------------------------------------------

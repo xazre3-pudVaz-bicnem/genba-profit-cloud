@@ -1,21 +1,22 @@
 "use client";
 
-import { Camera, FolderKanban, Settings } from "lucide-react";
+import { Camera, FilePlus2, FolderKanban, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { appPath } from "@/lib/app/routes";
 import { cn } from "@/lib/shared/utils";
 
 // ============================================================
-// スマホ下部の固定ナビ（3項目のみ・中央は写真登録の大ボタン）
+// スマホ下部の固定ナビ（4項目・写真登録は大ボタンで強調）
 // 現場で片手操作できるよう、ボタンは大きめにする
 // ============================================================
 
 const UPLOAD_HREF = appPath("/documents/upload");
 
 const ITEMS = [
-  { href: appPath("/projects"), label: "案件一覧", icon: FolderKanban, fab: false },
+  { href: appPath("/documents/create"), label: "書類作成", icon: FilePlus2, fab: false },
   { href: UPLOAD_HREF, label: "写真登録", icon: Camera, fab: true },
+  { href: appPath("/projects"), label: "案件一覧", icon: FolderKanban, fab: false },
   { href: appPath("/settings"), label: "設定", icon: Settings, fab: false },
 ];
 
@@ -29,7 +30,7 @@ export function MobileBottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 backdrop-blur lg:hidden no-print"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="grid h-[68px] grid-cols-3">
+      <div className="grid h-[68px] grid-cols-4">
         {ITEMS.map((item) => {
           const active = isActive(item.href);
           if (item.fab) {

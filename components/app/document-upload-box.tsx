@@ -35,11 +35,9 @@ export function DocumentUploadBox({ onFile }: DocumentUploadBoxProps) {
           <Camera className="h-8 w-8 text-brand-600" />
         </span>
         <div>
-          <p className="text-base font-bold text-neutral-900">レシートを撮影してください</p>
+          <p className="text-base font-bold text-neutral-900">写真・PDF・Excelを追加してください</p>
           <p className="mt-1 text-xs leading-5 text-neutral-500">
-            レシート・領収書・請求書・見積書に対応しています。
-            <br className="hidden sm:block" />
-            明るい場所で、全体が写るように撮影するときれいに読み取れます。
+            レシート・領収書・請求書は写真で、明細データはExcel・CSVでも読み込めます。
           </p>
         </div>
         <div className="flex w-full max-w-xs flex-col gap-2.5">
@@ -65,12 +63,14 @@ export function DocumentUploadBox({ onFile }: DocumentUploadBoxProps) {
             />
             <span className="flex h-14 w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white text-base font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50">
               <ImagePlus className="h-5 w-5" />
-              写真を選ぶ
+              ファイルを選ぶ
             </span>
           </label>
         </div>
         <p className="text-[11px] text-neutral-400">
-          jpg / png / webp / pdf・10MBまで。PCの場合はここにドラッグ&ドロップ
+          jpg / png / webp / pdf / xlsx / xls / csv・10MBまで
+          <br className="sm:hidden" />
+          <span className="hidden sm:inline">・</span>ここにファイルをドラッグ&ドロップ
         </p>
       </div>
     </Card>

@@ -39,17 +39,19 @@ export interface PrintDocData {
   subtotal: number;
   taxAmount: number;
   total: number;
-  /** 発行日・請求日・領収日 */
+  /** 発行日・請求日・領収日・発注日 */
   date: string | null;
   /** 見積: 有効期限 */
   validUntil?: string | null;
   /** 請求: 支払期限 */
   dueDate?: string | null;
+  /** 発注書: 納期 */
+  deliveryDate?: string | null;
   memo?: string;
 }
 
 interface PrintDocProps {
-  kind: "estimate" | "invoice" | "receipt";
+  kind: "estimate" | "invoice" | "receipt" | "purchase_order";
   data: PrintDocData;
   company: Company;
 }
@@ -69,6 +71,11 @@ const KIND_META = {
     title: "領 収 書",
     amountLabel: "領収金額",
     lead: "下記の通り、領収いたしました。",
+  },
+  purchase_order: {
+    title: "発  注  書",
+    amountLabel: "発注金額",
+    lead: "下記の通り、発注申し上げます。",
   },
 } as const;
 
@@ -107,6 +114,12 @@ export function PrintDoc({ kind, data, company }: PrintDocProps) {
               <tr>
                 <td className="pr-3 text-right">お支払期限</td>
                 <td className="tnum">{longDate(data.dueDate)}</td>
+              </tr>
+            ) : null}
+            {kind === "purchase_order" && data.deliveryDate ? (
+              <tr>
+                <td className="pr-3 text-right">納期</td>
+                <td className="tnum">{longDate(data.deliveryDate)}</td>
               </tr>
             ) : null}
           </tbody>

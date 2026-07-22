@@ -29,6 +29,7 @@ import type {
   EstimateInput,
   InvoiceInput,
   ProjectInput,
+  PurchaseOrderInput,
   RevenueInput,
 } from "./store";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
@@ -53,6 +54,8 @@ import type {
   PaymentMethod,
   Project,
   ProjectStatus,
+  PurchaseOrder,
+  PurchaseOrderStatus,
   Revenue,
   RevenueStatus,
   Role,
@@ -744,6 +747,81 @@ function invoicePatchToRow(patch: Partial<InvoiceInput>): Record<string, unknown
   return row;
 }
 
+// ---------- 発注書（親テーブル + 明細テーブル） ----------
+
+interface PurchaseOrderRow {
+  id: string;
+  project_id: string | null;
+  order_number: string;
+  vendor_name: string;
+  title: string;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  order_date: string | null;
+  delivery_date: string | null;
+  status: PurchaseOrderStatus;
+  memo: string | null;
+  created_at: string;
+  updated_at: string;
+  items: DocItemRow[] | null;
+}
+
+function rowToPurchaseOrder(row: PurchaseOrderRow): PurchaseOrder {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    orderNumber: row.order_number,
+    vendorName: row.vendor_name,
+    title: row.title,
+    items: rowsToLineItems(row.items),
+    subtotal: row.subtotal,
+    taxAmount: row.tax_amount,
+    total: row.total,
+    orderDate: row.order_date,
+    deliveryDate: row.delivery_date,
+    status: row.status,
+    memo: row.memo ?? "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function purchaseOrderToRow(po: PurchaseOrder, company: string): Record<string, unknown> {
+  return {
+    id: po.id,
+    company_id: company,
+    project_id: po.projectId && UUID_RE.test(po.projectId) ? po.projectId : null,
+    order_number: po.orderNumber,
+    vendor_name: po.vendorName,
+    title: po.title,
+    subtotal: po.subtotal,
+    tax_amount: po.taxAmount,
+    total: po.total,
+    order_date: po.orderDate,
+    delivery_date: po.deliveryDate,
+    status: po.status,
+    memo: po.memo,
+  };
+}
+
+function purchaseOrderPatchToRow(patch: Partial<PurchaseOrderInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.projectId !== undefined) {
+    row.project_id = patch.projectId && UUID_RE.test(patch.projectId) ? patch.projectId : null;
+  }
+  if (patch.vendorName !== undefined) row.vendor_name = patch.vendorName;
+  if (patch.title !== undefined) row.title = patch.title;
+  if (patch.subtotal !== undefined) row.subtotal = patch.subtotal;
+  if (patch.taxAmount !== undefined) row.tax_amount = patch.taxAmount;
+  if (patch.total !== undefined) row.total = patch.total;
+  if (patch.orderDate !== undefined) row.order_date = patch.orderDate;
+  if (patch.deliveryDate !== undefined) row.delivery_date = patch.deliveryDate;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.memo !== undefined) row.memo = patch.memo;
+  return row;
+}
+
 // ---------- 会社・メンバー ----------
 
 interface CompanyRow {
@@ -904,6 +982,33 @@ async function refetchInvoices(): Promise<void> {
   local.replaceInvoices((data as unknown as InvoiceRow[]).map(rowToInvoice));
 }
 
+/** テーブル未作成（migration未適用）のエラーか */
+function isTableMissing(err: unknown): boolean {
+  const { message, code } = errText(err);
+  return code === "PGRST205" || /schema cache|does not exist/i.test(message);
+}
+
+async function refetchPurchaseOrders(): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { data, error } = await sb
+    .from("purchase_orders")
+    .select(
+      "id,project_id,order_number,vendor_name,title,subtotal,tax_amount,total,order_date,delivery_date,status,memo,created_at,updated_at,items:purchase_order_items(id,name,quantity,unit,unit_price,amount,sort_order)"
+    )
+    .order("created_at", { ascending: false });
+  if (error) {
+    // migration未適用の環境ではローカル動作のまま静かに続行する
+    // （毎回のhydrateでトーストを出さない。保存時には案内が表示される）
+    if (isTableMissing(error)) {
+      console.warn("[supabase] purchase_ordersテーブル未作成（supabase/migration-purchase-orders.sql を実行してください）");
+      return;
+    }
+    throw error;
+  }
+  local.replacePurchaseOrders((data as unknown as PurchaseOrderRow[]).map(rowToPurchaseOrder));
+}
+
 async function refetchCompany(): Promise<void> {
   const sb = getSupabase();
   if (!sb) return;
@@ -956,6 +1061,7 @@ export async function hydrateFromSupabase(): Promise<void> {
       refetchDocuments(),
       refetchEstimates(),
       refetchInvoices(),
+      refetchPurchaseOrders(),
       refetchCompany(),
       refetchMembers(),
     ]);
@@ -1276,8 +1382,8 @@ export function spRemoveDocument(id: string): void {
 
 /** 明細テーブルを全置換する（親の作成・編集で共用） */
 async function replaceItemRows(
-  table: "estimate_items" | "invoice_items",
-  parentKey: "estimate_id" | "invoice_id",
+  table: "estimate_items" | "invoice_items" | "purchase_order_items",
+  parentKey: "estimate_id" | "invoice_id" | "purchase_order_id",
   parentId: string,
   items: LineItem[]
 ): Promise<void> {
@@ -1397,6 +1503,62 @@ export function spRemoveInvoice(id: string): void {
       if (error) throw error;
     },
     refetchInvoices
+  );
+}
+
+// ---------- 発注書 ----------
+
+export function spAddPurchaseOrder(input: PurchaseOrderInput): PurchaseOrder {
+  const po = local.addPurchaseOrder(input);
+  syncInBackground(
+    "発注書の作成",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      const company = await requireCompanyId();
+      const { error } = await sb.from("purchase_orders").insert(purchaseOrderToRow(po, company));
+      if (error) throw error;
+      await replaceItemRows("purchase_order_items", "purchase_order_id", po.id, po.items);
+    },
+    refetchPurchaseOrders
+  );
+  return po;
+}
+
+export function spUpdatePurchaseOrder(id: string, patch: Partial<PurchaseOrderInput>): void {
+  local.updatePurchaseOrder(id, patch);
+  syncInBackground(
+    "発注書の更新",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      const row = purchaseOrderPatchToRow(patch);
+      if (Object.keys(row).length > 0) {
+        const { error } = await sb.from("purchase_orders").update(row).eq("id", id);
+        if (error) throw error;
+      }
+      if (patch.items !== undefined) {
+        await replaceItemRows("purchase_order_items", "purchase_order_id", id, patch.items);
+      }
+    },
+    refetchPurchaseOrders
+  );
+}
+
+export function spRemovePurchaseOrder(id: string): void {
+  local.removePurchaseOrder(id);
+  syncInBackground(
+    "発注書の削除",
+    async () => {
+      const sb = getSupabase();
+      if (!sb) return;
+      await ensureCompanyId();
+      // 明細はFKのcascadeで一緒に削除される
+      const { error } = await sb.from("purchase_orders").delete().eq("id", id);
+      if (error) throw error;
+    },
+    refetchPurchaseOrders
   );
 }
 

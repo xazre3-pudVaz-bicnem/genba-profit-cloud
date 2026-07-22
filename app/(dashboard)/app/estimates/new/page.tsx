@@ -14,11 +14,15 @@ import { Textarea } from "@/components/shared/textarea";
 import { toast } from "@/components/shared/toast";
 import { ESTIMATE_STATUSES } from "@/lib/app/constants";
 import { dateFromToday, taxFromSubtotal, todayISO, yen } from "@/lib/shared/format";
-import { addEstimate, updateEstimate, useDB } from "@/lib/app/data-store";
+import { addEstimate, updateEstimate, useDB, useSession } from "@/lib/app/data-store";
+import { canEditData } from "@/lib/app/permissions";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ShieldAlert } from "lucide-react";
 import type { EstimateStatus, LineItem } from "@/lib/app/types";
 
 function EstimateEditor() {
   const db = useDB();
+  const session = useSession();
   const router = useRouter();
   const params = useSearchParams();
   const editId = params.get("id");
@@ -46,6 +50,18 @@ function EstimateEditor() {
   const total = subtotal + taxAmount;
 
   if (!db.hydrated) return <PageSkeleton />;
+
+  // viewer（閲覧のみ）は書類作成不可
+  if (!canEditData(session?.role)) {
+    return (
+      <PageContainer className="max-w-3xl">
+        <AppPageHeader title="見積書" />
+        <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-card">
+          <EmptyState icon={ShieldAlert} title="書類作成の権限がありません" description="閲覧のみの権限のため、見積書の作成はできません。" />
+        </div>
+      </PageContainer>
+    );
+  }
 
   const save = () => {
     if (!customerName.trim()) {

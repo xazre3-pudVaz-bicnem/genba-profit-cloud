@@ -14,11 +14,15 @@ import { Textarea } from "@/components/shared/textarea";
 import { toast } from "@/components/shared/toast";
 import { INVOICE_STATUSES } from "@/lib/app/constants";
 import { dateFromToday, taxFromSubtotal, todayISO, yen } from "@/lib/shared/format";
-import { addInvoice, addRevenue, updateInvoice, useDB } from "@/lib/app/data-store";
+import { addInvoice, addRevenue, updateInvoice, useDB, useSession } from "@/lib/app/data-store";
+import { canEditData } from "@/lib/app/permissions";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ShieldAlert } from "lucide-react";
 import type { InvoiceStatus, LineItem } from "@/lib/app/types";
 
 function InvoiceEditor() {
   const db = useDB();
+  const session = useSession();
   const router = useRouter();
   const params = useSearchParams();
   const editId = params.get("id");
@@ -47,6 +51,18 @@ function InvoiceEditor() {
   const total = subtotal + taxAmount;
 
   if (!db.hydrated) return <PageSkeleton />;
+
+  // viewer（閲覧のみ）は書類作成不可
+  if (!canEditData(session?.role)) {
+    return (
+      <PageContainer className="max-w-3xl">
+        <AppPageHeader title="請求書" />
+        <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-card">
+          <EmptyState icon={ShieldAlert} title="書類作成の権限がありません" description="閲覧のみの権限のため、請求書の作成はできません。" />
+        </div>
+      </PageContainer>
+    );
+  }
 
   const save = () => {
     if (!customerName.trim()) {

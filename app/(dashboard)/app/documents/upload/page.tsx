@@ -8,6 +8,7 @@ import {
   FileText,
   Info,
   ScanLine,
+  ShieldAlert,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -46,7 +47,11 @@ import {
   useSession,
 } from "@/lib/app/data-store";
 import { getSupabase, isSupabaseConfigured } from "@/lib/app/supabase";
-import { isPdfFile } from "@/lib/app/upload";
+import { canEditData } from "@/lib/app/permissions";
+import { parseSheetFile, type ParsedSheet } from "@/lib/app/sheet";
+import { isPdfFile, isSheetFile } from "@/lib/app/upload";
+import { SheetImport } from "@/components/app/sheet-import";
+import { EmptyState } from "@/components/shared/empty-state";
 import type {
   DocumentType,
   ExpenseCategory,
@@ -110,6 +115,8 @@ function UploadContent() {
   const contextProjectId = searchParams.get("project");
 
   const [step, setStep] = useState<Step>("pick");
+  // Excel / CSV の取り込み（写真とは別フロー）
+  const [sheet, setSheet] = useState<{ file: File; parsed: ParsedSheet } | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [docType, setDocType] = useState<DocumentType>("receipt");
@@ -141,10 +148,40 @@ function UploadContent() {
 
   if (!db.hydrated) return <PageSkeleton />;
 
+  // viewer（閲覧のみ）はファイル登録不可
+  if (!canEditData(session?.role)) {
+    return (
+      <PageContainer className="max-w-3xl">
+        <AppPageHeader title="写真・ファイルから登録" />
+        <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-card">
+          <EmptyState
+            icon={ShieldAlert}
+            title="登録の権限がありません"
+            description="閲覧のみの権限のため、ファイルの登録はできません。"
+          />
+        </div>
+      </PageContainer>
+    );
+  }
+
   const stepIndex = STEP_LABELS.findIndex((s) => s.key === step);
 
-  const handleFile = (f: File) => {
+  const handleFile = async (f: File) => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+    // Excel / CSV は表データとして読み込む（OCRは使わない）
+    if (isSheetFile(f)) {
+      try {
+        const parsed = await parseSheetFile(f);
+        setSheet({ file: f, parsed });
+      } catch (err) {
+        toast({
+          title: "ファイルを読み取れませんでした",
+          description: err instanceof Error ? err.message : "別のファイルでお試しください",
+          variant: "error",
+        });
+      }
+      return;
+    }
     setFile(f);
     setPreviewUrl(URL.createObjectURL(f));
     setStep("type");
@@ -406,10 +443,14 @@ function UploadContent() {
   return (
     <PageContainer className="max-w-3xl">
       <AppPageHeader
-        title="写真から登録"
-        description="レシート・請求書・領収書を撮るだけで、案件の原価や売上に反映できます"
+        title="写真・ファイルから登録"
+        description="レシート・領収書・請求書・PDF・Excelを読み込んで、案件の売上や原価に反映できます"
       />
 
+      {sheet ? (
+        <SheetImport file={sheet.file} parsed={sheet.parsed} onBack={() => setSheet(null)} />
+      ) : (
+      <>
       {/* ステップ表示 */}
       <div className="mb-5 flex items-center gap-1">
         {STEP_LABELS.map((s, i) => (
@@ -781,6 +822,8 @@ function UploadContent() {
           </div>
         </Card>
       ) : null}
+      </>
+      )}
     </PageContainer>
   );
 }

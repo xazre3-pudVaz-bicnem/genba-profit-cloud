@@ -2,8 +2,10 @@
 
 import { ChevronLeft, ChevronRight, FolderKanban, Plus } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PageContainer, AppPageHeader } from "@/components/app/app-page-header";
+import { CostBreakdownDialog } from "@/components/app/cost-breakdown-dialog";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Button } from "@/components/shared/button";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -60,7 +62,10 @@ function SummaryCard({
 
 export default function ProjectsPage() {
   const db = useDB();
+  const router = useRouter();
   const [month, setMonth] = useState(currentMonthKey());
+  // 原価一覧モーダルを開いている案件
+  const [costProjectId, setCostProjectId] = useState<string | null>(null);
 
   if (!db.hydrated) return <PageSkeleton />;
 
@@ -215,25 +220,25 @@ export default function ProjectsPage() {
               {projects.map((project) => {
                 const fin = projectFinance(project.id, db);
                 return (
-                  <Link
+                  <div
                     key={project.id}
-                    href={`/app/projects/${project.id}`}
-                    className="block px-4 py-3.5 transition-colors hover:bg-neutral-50 lg:flex lg:items-center lg:gap-3"
+                    onClick={() => router.push(`/app/projects/${project.id}`)}
+                    className="block cursor-pointer px-4 py-3.5 transition-colors hover:bg-neutral-50 lg:flex lg:items-center lg:gap-3"
                   >
-                    {/* 案件名・顧客名（スマホはステータスを右端に） */}
-                    <div className="flex min-w-0 items-center gap-2 lg:flex-1">
+                    {/* 顧客名・案件名の2段表示（スマホはステータスを右端に） */}
+                    <div className="flex min-w-0 items-start gap-2 lg:flex-1 lg:items-center">
                       <span
-                        className="h-4 w-1.5 shrink-0 rounded-full"
+                        className="mt-1 h-9 w-1.5 shrink-0 rounded-full lg:mt-0"
                         style={{ background: project.color }}
                       />
-                      <span className="truncate text-sm font-bold text-neutral-900">
-                        {project.name}
-                      </span>
-                      {project.customerName ? (
-                        <span className="hidden shrink-0 truncate text-xs text-neutral-400 sm:inline">
-                          {project.customerName}
-                        </span>
-                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[11px] text-neutral-400">
+                          {project.customerName || "顧客名未設定"}
+                        </p>
+                        <p className="truncate text-sm font-bold text-neutral-900">
+                          {project.name}
+                        </p>
+                      </div>
                       <span className="ml-auto shrink-0 lg:hidden">
                         <StatusBadge meta={PROJECT_STATUSES[project.status]} />
                       </span>
@@ -250,12 +255,20 @@ export default function ProjectsPage() {
                           {fin.hasRevenue ? yen(fin.revenueTotal) : "未登録"}
                         </p>
                       </div>
-                      <div className="lg:w-28 lg:shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCostProjectId(project.id);
+                        }}
+                        className="text-left lg:w-28 lg:shrink-0 cursor-pointer"
+                        title="原価の内訳を見る"
+                      >
                         <p className="text-[10px] text-neutral-400 lg:hidden">原価</p>
-                        <p className="tnum text-[13px] font-semibold text-neutral-800 lg:text-right">
+                        <p className="tnum text-[13px] font-semibold text-brand-700 underline decoration-dotted underline-offset-2 lg:text-right">
                           {yen(fin.costTotal)}
                         </p>
-                      </div>
+                      </button>
                       <div className="lg:w-28 lg:shrink-0">
                         <p className="text-[10px] text-neutral-400 lg:hidden">利益</p>
                         <p
@@ -292,13 +305,16 @@ export default function ProjectsPage() {
                       </div>
                     </div>
                     <ChevronRight className="hidden h-4 w-4 shrink-0 text-neutral-300 lg:block" />
-                  </Link>
+                  </div>
                 );
               })}
             </div>
           </div>
         )}
       </div>
+
+      {/* 原価の内訳モーダル */}
+      <CostBreakdownDialog projectId={costProjectId} onClose={() => setCostProjectId(null)} />
     </PageContainer>
   );
 }

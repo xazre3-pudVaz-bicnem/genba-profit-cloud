@@ -43,6 +43,7 @@ export function emptyDB(): DB {
     documents: [],
     estimates: [],
     invoices: [],
+    purchaseOrders: [],
     hydrated: false,
   };
 }
@@ -807,6 +808,18 @@ export function seedDemoData(): DB {
         subtotal: 1500000, taxAmount: 150000, total: 1650000,
         invoiceDate: null, dueDate: null, paidDate: null, status: "draft", memo: "発行前",
         createdAt: ts(-1), updatedAt: ts(-1),
+      },
+    ],
+    purchaseOrders: [
+      {
+        id: "po1", projectId: "p1", orderNumber: "PO-0001",
+        vendorName: "佐藤設備工業", title: "給排水設備工事の発注",
+        items: [
+          { id: "po1-1", name: "給排水設備工事一式", quantity: 1, unit: "式", unitPrice: 480000, amount: 480000 },
+        ],
+        subtotal: 480000, taxAmount: 48000, total: 528000,
+        orderDate: d(-10), deliveryDate: d(14), status: "sent", memo: "",
+        createdAt: ts(-10), updatedAt: ts(-10),
       },
     ],
   };

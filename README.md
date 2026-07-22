@@ -27,9 +27,10 @@ npm run dev        # http://localhost:3000
 2. Supabaseプロジェクトを作成し、`supabase/schema.sql` をSQL Editorで実行
 3. Storageで `documents` バケット（非公開）を作成
 4. （推奨）`supabase/storage-company-assets.sql` を実行 → 会社ロゴ用の公開バケットを作成
-5. `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定 → メール認証・画像ストレージが有効化
-6. `ANTHROPIC_API_KEY`（または `OPENAI_API_KEY`）を設定 → AI OCRが実読み取りに切り替わる
-7. Vercelへデプロイ（環境変数を同様に設定）→ `/signup` で会社登録して利用開始
+5. （発注書を使う場合）`supabase/migration-purchase-orders.sql` を実行 → 発注書テーブルを作成
+6. `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定 → メール認証・画像ストレージが有効化
+7. `ANTHROPIC_API_KEY`（または `OPENAI_API_KEY`）を設定 → AI OCRが実読み取りに切り替わる
+8. Vercelへデプロイ（環境変数を同様に設定）→ `/signup` で会社登録して利用開始
 
 ### デモモードの使い方
 
@@ -41,7 +42,7 @@ LPの「デモを見る」→「デモ管理画面を開く」からも同じ画
 
 案件管理（月別一覧・ボード・カレンダー・詳細3タブ）／売上・原価（外注費・材料費・経費）管理／
 利益・利益率の自動計算（赤字・低利益の警告）／レシート・請求書の**AI OCR読み取り**（写真から半自動登録）／
-書類保管（Storage + 署名URLプレビュー）／見積書・請求書（明細・A4帳票・領収書発行・売上連動）／
+書類保管（Storage + 署名URLプレビュー・Excel/CSV取り込み）／見積書・請求書・発注書（明細・A4帳票・Excel出力・売上/外注費連動）／
 会社設定（帳票の発行元・振込先・ロゴ）／メンバー管理（権限4種 + RLS）／デモモード
 
 ---
@@ -218,7 +219,8 @@ NEXT_PUBLIC_APP_URL=https://app.genba-profit-cloud.jp
 | `/app/documents/upload` | 写真から登録（AI読み取りウィザード・最重要導線） |
 | `/app/projects` `/new` `/board` `/[id]` | 月別の案件一覧・作成・ボード・詳細（収支/写真・書類/メモの3タブ） |
 | `/app/calendar` | 工期・請求・入金カレンダー |
-| `/app/documents` `/upload` | 書類一覧・写真から登録（AI読み取りウィザード） |
+| `/app/documents` `/upload` `/create` | 書類一覧・写真/ファイル登録（AI読み取り・Excel/CSV取込）・書類作成（見積/請求/発注） |
+| `/app/purchase-orders/[id]` | 発注書の詳細（A4帳票・Excel出力・外注費反映） |
 | `/app/revenues` `/app/costs` | 売上・原価一覧 |
 | `/app/estimates` `/app/invoices`（+ `/new` `/[id]`） | 見積・請求（A4帳票PDF・領収書発行） |
 | `/app/settings` `/members` | 会社設定・メンバー管理 |
@@ -266,7 +268,8 @@ NEXT_PUBLIC_STRIPE_PRICE_PRO=          # ─┘
 ## Supabaseテーブル（`supabase/schema.sql`）
 
 companies / profiles / projects / revenues / costs / documents /
-estimates + estimate_items / invoices + invoice_items
+estimates + estimate_items / invoices + invoice_items /
+purchase_orders + purchase_order_items（`supabase/migration-purchase-orders.sql` で追加）
 
 RLS: `current_company_id()` により全テーブルを会社単位で分離。viewerロールは書き込み不可。
 
