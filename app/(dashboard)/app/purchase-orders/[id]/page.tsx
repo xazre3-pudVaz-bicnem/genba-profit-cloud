@@ -27,6 +27,7 @@ import {
   useSession,
 } from "@/lib/app/data-store";
 import { exportDocumentExcel } from "@/lib/app/export-excel";
+import { exportPrintAreaPdf } from "@/lib/app/export-pdf";
 import { canEditData } from "@/lib/app/permissions";
 import { todayISO, yen } from "@/lib/shared/format";
 
@@ -143,7 +144,13 @@ export default function PurchaseOrderDetailPage() {
                 <FileSpreadsheet className="h-4 w-4" />
                 Excelで出力
               </Button>
-              <Button onClick={() => window.print()}>
+              <Button
+                onClick={() =>
+                  void exportPrintAreaPdf(
+                    `発注書_${po.title}_${po.orderDate ?? todayISO()}`
+                  )
+                }
+              >
                 <FileDown className="h-4 w-4" />
                 PDFで出力
               </Button>

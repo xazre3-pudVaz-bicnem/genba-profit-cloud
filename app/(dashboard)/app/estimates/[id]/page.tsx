@@ -15,6 +15,8 @@ import { toast } from "@/components/shared/toast";
 import { ESTIMATE_STATUSES } from "@/lib/app/constants";
 import { removeEstimate, updateEstimate, useDB } from "@/lib/app/data-store";
 import { exportDocumentExcel } from "@/lib/app/export-excel";
+import { exportPrintAreaPdf } from "@/lib/app/export-pdf";
+import { todayISO } from "@/lib/shared/format";
 import type { EstimateStatus } from "@/lib/app/types";
 
 export default function EstimateDetailPage() {
@@ -100,7 +102,13 @@ export default function EstimateDetailPage() {
                 <FileSpreadsheet className="h-4 w-4" />
                 Excelで出力
               </Button>
-              <Button onClick={() => window.print()}>
+              <Button
+                onClick={() =>
+                  void exportPrintAreaPdf(
+                    `見積書_${estimate.title}_${estimate.issueDate ?? todayISO()}`
+                  )
+                }
+              >
                 <FileDown className="h-4 w-4" />
                 PDFで出力
               </Button>

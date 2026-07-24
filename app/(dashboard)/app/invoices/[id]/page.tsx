@@ -21,8 +21,10 @@ import { ConfirmDialog } from "@/components/shared/dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageSkeleton } from "@/components/shared/skeleton";
 import { toast } from "@/components/shared/toast";
+import { matchProjectByCustomer } from "@/lib/app/assign";
 import { invoiceIsOverdue } from "@/lib/app/calc";
 import { exportDocumentExcel } from "@/lib/app/export-excel";
+import { exportPrintAreaPdf } from "@/lib/app/export-pdf";
 import { todayISO, yen } from "@/lib/shared/format";
 import {
   addRevenue,
@@ -42,10 +44,41 @@ export default function InvoiceDetailPage() {
   if (!db.hydrated) return <PageSkeleton />;
 
   const invoice = db.invoices.find((i) => i.id === params.id);
-  // この請求書から作成された売上（メモの請求番号で紐づけ）
+  // この請求書から作成された売上（メモの請求番号で紐づけ・二重反映防止）
   const linkedRevenue = invoice
     ? db.revenues.find((r) => r.memo.includes(invoice.invoiceNumber))
     : undefined;
+  // 案件が未選択でも、宛名（顧客名）から案件を自動で推定する
+  const matchedProject =
+    invoice && !invoice.projectId ? matchProjectByCustomer(invoice.customerName, db) : null;
+  const resolvedProjectId = invoice ? (invoice.projectId ?? matchedProject?.id ?? null) : null;
+  const resolvedProject = resolvedProjectId
+    ? db.projects.find((p) => p.id === resolvedProjectId)
+    : undefined;
+
+  /** 売上を作成し、宛名マッチだった場合は請求書にも案件を紐づける */
+  const reflectRevenue = (opts: { paid: boolean }) => {
+    if (!invoice || !resolvedProjectId) return false;
+    const invoiceDate = invoice.invoiceDate ?? todayISO();
+    addRevenue({
+      projectId: resolvedProjectId,
+      title: invoice.title,
+      amount: invoice.total,
+      taxType: "exclusive",
+      taxAmount: invoice.taxAmount,
+      billingDueDate: invoiceDate,
+      billedDate: invoiceDate,
+      paymentDueDate: invoice.dueDate,
+      paidDate: opts.paid ? (invoice.paidDate ?? todayISO()) : null,
+      status: opts.paid ? "paid" : "billed",
+      memo: `請求書 ${invoice.invoiceNumber} から自動登録`,
+      documentId: null,
+    });
+    if (!invoice.projectId) {
+      updateInvoice(invoice.id, { projectId: resolvedProjectId });
+    }
+    return true;
+  };
 
   if (!invoice) {
     return (
@@ -80,44 +113,41 @@ export default function InvoiceDetailPage() {
                   variant="secondary"
                   onClick={() => {
                     updateInvoice(invoice.id, { status: "paid", paidDate: todayISO() });
-                    // 連動する売上も入金済にする
-                    if (linkedRevenue && linkedRevenue.status !== "paid") {
-                      updateRevenue(linkedRevenue.id, { status: "paid", paidDate: todayISO() });
+                    if (linkedRevenue) {
+                      // 連動する売上も入金済にする
+                      if (linkedRevenue.status !== "paid") {
+                        updateRevenue(linkedRevenue.id, { status: "paid", paidDate: todayISO() });
+                      }
+                      toast({
+                        title: "入金を記録しました",
+                        description: "案件の売上にも反映しました",
+                      });
+                    } else if (reflectRevenue({ paid: true })) {
+                      // 売上が未作成なら、宛名から案件を推定して入金済の売上を自動登録
+                      toast({
+                        title: "入金を記録しました",
+                        description: `${resolvedProject?.name ?? "案件"}の売上に ${yen(invoice.total)} を反映しました`,
+                      });
+                    } else {
+                      toast({
+                        title: "入金を記録しました",
+                        description: "宛名に一致する案件が見つからないため、売上への反映は行われませんでした",
+                      });
                     }
-                    toast({
-                      title: "入金を記録しました",
-                      description: linkedRevenue ? "案件の売上にも反映しました" : undefined,
-                    });
                   }}
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   入金を記録
                 </Button>
               ) : null}
-              {invoice.status !== "draft" && invoice.projectId && !linkedRevenue ? (
+              {invoice.status !== "draft" && resolvedProjectId && !linkedRevenue ? (
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    const projectId = invoice.projectId;
-                    if (!projectId) return;
-                    const isPaid = invoice.status === "paid";
-                    addRevenue({
-                      projectId,
-                      title: invoice.title,
-                      amount: invoice.total,
-                      taxType: "exclusive",
-                      taxAmount: invoice.taxAmount,
-                      billingDueDate: invoice.invoiceDate,
-                      billedDate: invoice.invoiceDate,
-                      paymentDueDate: invoice.dueDate,
-                      paidDate: isPaid ? (invoice.paidDate ?? todayISO()) : null,
-                      status: isPaid ? "paid" : "billed",
-                      memo: `請求書 ${invoice.invoiceNumber} から自動登録`,
-                      documentId: null,
-                    });
+                    if (!reflectRevenue({ paid: invoice.status === "paid" })) return;
                     toast({
                       title: "売上に反映しました",
-                      description: `${yen(invoice.total)} を案件の売上に計上しました`,
+                      description: `${yen(invoice.total)} を${resolvedProject?.name ?? "案件"}の売上に計上しました`,
                     });
                   }}
                 >
@@ -131,25 +161,11 @@ export default function InvoiceDetailPage() {
                   onClick={() => {
                     const invoiceDate = invoice.invoiceDate ?? todayISO();
                     updateInvoice(invoice.id, { status: "sent", invoiceDate });
-                    // 案件に紐づく請求は売上（請求済）としても計上する
-                    if (invoice.projectId && !linkedRevenue) {
-                      addRevenue({
-                        projectId: invoice.projectId,
-                        title: invoice.title,
-                        amount: invoice.total,
-                        taxType: "exclusive",
-                        taxAmount: invoice.taxAmount,
-                        billingDueDate: invoiceDate,
-                        billedDate: invoiceDate,
-                        paymentDueDate: invoice.dueDate,
-                        paidDate: null,
-                        status: "billed",
-                        memo: `請求書 ${invoice.invoiceNumber} から自動登録`,
-                        documentId: null,
-                      });
+                    // 案件に紐づく（または宛名から推定できた）請求は売上（請求済）としても計上する
+                    if (!linkedRevenue && reflectRevenue({ paid: false })) {
                       toast({
                         title: "請求済にしました",
-                        description: `${yen(invoice.total)} を案件の売上に反映しました`,
+                        description: `${yen(invoice.total)} を${resolvedProject?.name ?? "案件"}の売上に反映しました`,
                       });
                     } else {
                       toast({ title: "請求済にしました" });
@@ -197,7 +213,13 @@ export default function InvoiceDetailPage() {
                 <FileSpreadsheet className="h-4 w-4" />
                 Excelで出力
               </Button>
-              <Button onClick={() => window.print()}>
+              <Button
+                onClick={() =>
+                  void exportPrintAreaPdf(
+                    `請求書_${invoice.title}_${invoice.invoiceDate ?? todayISO()}`
+                  )
+                }
+              >
                 <FileDown className="h-4 w-4" />
                 PDFで出力
               </Button>

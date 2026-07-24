@@ -130,6 +130,27 @@ export function suggestProjects(input: SuggestInput, db: DB): AssignCandidate[] 
   return candidates.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
+/**
+ * 宛名（顧客名・会社名）から案件を推定する。
+ * 請求書に案件が紐づいていないとき、入金記録・売上反映の自動振り分けに使う。
+ * 会社形態の表記ゆれ（株式会社・(株)等）を除いた部分一致で照合し、
+ * 複数一致は更新が新しい案件を採用する。一致なしは null。
+ */
+export function matchProjectByCustomer(customerName: string, db: DB): Project | null {
+  const strip = (s: string) =>
+    normalize(s).replace(/株式会社|\(株\)|（株）|有限会社|\(有\)|（有）|合同会社/g, "");
+  const target = strip(customerName);
+  if (target.length < 2) return null;
+  const matches = db.projects.filter((p) => {
+    if (p.status === "lost") return false;
+    const candidate = strip(p.customerName);
+    if (candidate.length < 2) return false;
+    return candidate.includes(target) || target.includes(candidate);
+  });
+  if (matches.length === 0) return null;
+  return [...matches].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+}
+
 export const CONFIDENCE_LABELS: Record<Confidence, string> = {
   high: "高",
   medium: "中",
