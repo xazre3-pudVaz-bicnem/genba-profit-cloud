@@ -80,16 +80,17 @@ export function safeStorageFileName(name: string, mimeType: string): string {
 
 export const LOGO_MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-export const LOGO_ACCEPT = "image/jpeg,image/png,image/webp,image/svg+xml";
+// SVGは <script> を埋め込める（保存型XSSの温床）ため受け付けない。
+export const LOGO_ACCEPT = "image/jpeg,image/png,image/webp";
 
-const LOGO_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
-const LOGO_EXT = new Set(["jpg", "jpeg", "png", "webp", "svg"]);
+const LOGO_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+const LOGO_EXT = new Set(["jpg", "jpeg", "png", "webp"]);
 
 /** ロゴファイルを検証し、問題があれば日本語のエラーメッセージを返す */
 export function validateLogoFile(file: File): string | null {
   const okType = LOGO_MIME.has(file.type) || LOGO_EXT.has(fileExtension(file.name));
   if (!okType) {
-    return "対応していないファイル形式です（jpg / jpeg / png / webp / svg）";
+    return "対応していないファイル形式です（jpg / jpeg / png / webp）";
   }
   if (file.size > LOGO_MAX_FILE_SIZE) {
     return "ファイルサイズが大きすぎます（5MBまで）";

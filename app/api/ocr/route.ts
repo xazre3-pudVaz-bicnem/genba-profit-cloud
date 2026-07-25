@@ -20,6 +20,10 @@ import type { DocumentType, OcrResult } from "@/lib/app/types";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+// 濫用防止の上限（未認証呼び出しは弾くうえで、サイズも制限する）
+const MAX_REQUEST_BYTES = 12 * 1024 * 1024; // リクエスト全体
+const MAX_IMAGE_BASE64 = 8_000_000; // フォールバック画像のbase64長（~6MB）
+
 const DOC_TYPES: DocumentType[] = [
   "receipt",
   "receipt_official",
@@ -267,6 +271,12 @@ export async function POST(req: Request) {
   let fallbackImage: string | null = null;
   let fallbackMime = "image/jpeg";
 
+  // リクエストサイズの上限（巨大ペイロードによるメモリ圧迫・コスト増を防ぐ）
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_REQUEST_BYTES) {
+    return NextResponse.json({ error: "payload too large" }, { status: 413 });
+  }
+
   try {
     const body = (await req.json()) as {
       documentId?: string | null;
@@ -284,11 +294,23 @@ export async function POST(req: Request) {
     // ボディ不正でもモックで応答する
   }
 
+  // 認証必須: 有効なSupabaseセッション(JWT)を検証し、無効なら有料APIを一切呼ばない。
+  // これが無いと、誰でも /api/ocr に画像を投げてClaude/OpenAIの課金を発生させられる
+  // （APIコスト枯渇＝denial-of-wallet / DoS）。トークンは実在確認まで行う。
   const sb = userScopedClient(req.headers.get("authorization"));
+  const user = sb ? (await sb.auth.getUser()).data.user : null;
+  if (!sb || !user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+  }
+
+  // フォールバック画像のサイズ上限（base64長）。Storage原本と同等の~4.5MB相当に制限。
+  if (fallbackImage && fallbackImage.length > MAX_IMAGE_BASE64) {
+    fallbackImage = null;
+  }
 
   // OCR入力の決定: Storageの原本を優先し、取得できなければクライアント縮小画像
   let source: OcrSource | null = null;
-  if (filePath && sb) {
+  if (filePath) {
     try {
       source = await loadFromStorage(sb, filePath);
     } catch (err) {
@@ -303,7 +325,7 @@ export async function POST(req: Request) {
     if (process.env.ANTHROPIC_API_KEY) {
       try {
         const result = await analyzeWithClaude(source, hint);
-        if (sb && documentId) await persistToDocument(sb, documentId, result);
+        if (documentId) await persistToDocument(sb, documentId, result);
         return NextResponse.json({ provider: "claude", result });
       } catch (err) {
         console.error("[ocr] Claude解析に失敗:", err);
@@ -312,7 +334,7 @@ export async function POST(req: Request) {
     if (process.env.OPENAI_API_KEY) {
       try {
         const result = await analyzeWithOpenAI(source, hint);
-        if (sb && documentId) await persistToDocument(sb, documentId, result);
+        if (documentId) await persistToDocument(sb, documentId, result);
         return NextResponse.json({ provider: "openai", result });
       } catch (err) {
         console.error("[ocr] OpenAI解析に失敗:", err);
